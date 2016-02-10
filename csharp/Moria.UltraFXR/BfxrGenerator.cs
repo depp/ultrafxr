@@ -12,15 +12,20 @@ namespace Moria.UltraFXR
 
 		private readonly Random rand;
 
-		// Temporary
-		private double period, maxPeriod;
-		private double slide, deltaSlide;
-		private double squareDuty, dutySweep;
-		private int changePeriod, changePeriodTime;
-		private double changeAmount, changeAmount2;
-		private int changeTime, changeTime2;
-		private int changeLimit, changeLimit2;
-		private bool changeReached, changeReached2;
+		private struct State
+		{
+			public double period, maxPeriod;
+			public double slide, deltaSlide;
+			public double squareDuty, dutySweep;
+			public int changePeriod, changePeriodTime;
+			public double changeAmount, changeAmount2;
+			public int changeTime, changeTime2;
+			public int changeLimit, changeLimit2;
+			public bool changeReached, changeReached2;
+		}
+
+		private State state;
+		private State initState;
 
 		// Permanent
 		private double masterVolume;
@@ -52,41 +57,42 @@ namespace Moria.UltraFXR
 		{
 			this.rand = new Random();
 
-			this.period = 100.0 / (p.StartFrequency * p.StartFrequency + 0.001);
-			this.maxPeriod = 100.0 / (p.MinFrequency * p.MinFrequency + 0.001);
+			this.state.period = 100.0 / (p.StartFrequency * p.StartFrequency + 0.001);
+			this.state.maxPeriod = 100.0 / (p.MinFrequency * p.MinFrequency + 0.001);
 
-			this.slide = 1.0 - 0.01 * p.Slide * p.Slide * p.Slide;
-			this.deltaSlide = -0.000001 * p.DeltaSlide * p.DeltaSlide * p.DeltaSlide;
+			this.state.slide = 1.0 - 0.01 * p.Slide * p.Slide * p.Slide;
+			this.state.deltaSlide = -0.000001 * p.DeltaSlide * p.DeltaSlide * p.DeltaSlide;
 
-			this.squareDuty = 0;
-			this.dutySweep = 0;
+			this.state.squareDuty = 0;
+			this.state.dutySweep = 0;
 			if (p.Wave == BfxrWave.Square)
 			{
-				this.squareDuty = 0.5 - 0.5 * p.SquareDuty;
-				this.dutySweep = -0.00005 * p.DutySweep;
+				this.state.squareDuty = 0.5 - 0.5 * p.SquareDuty;
+				this.state.dutySweep = -0.00005 * p.DutySweep;
 			}
 
-			this.changePeriod = (int)(((1 - p.ChangeRepeat) + 0.1) / 1.1 * 20000 + 32);
-			this.changePeriodTime = 0;
+			this.state.changePeriod = (int)((1.1 - p.ChangeRepeat) * (20000 / 1.1) + 32);
+			this.state.changePeriodTime = 0;
 
-			this.changeAmount = p.ChangeAmount > 0
+			this.state.changeAmount = p.ChangeAmount > 0
 				? 1.0 - 0.9 * p.ChangeAmount * p.ChangeAmount
 				: 1.0 + 10.0 * p.ChangeAmount * p.ChangeAmount;
-			this.changeAmount2 = p.ChangeAmount2 > 0
+			this.state.changeAmount2 = p.ChangeAmount2 > 0
 				? 1.0 - 0.9 * p.ChangeAmount2 * p.ChangeAmount2
 				: 1.0 + 10.0 * p.ChangeAmount2 * p.ChangeAmount2;
-			this.changeTime = 0;
-			this.changeTime2 = 0;
-			this.changeLimit = p.ChangeSpeed == 1.0
+			this.state.changeTime = 0;
+			this.state.changeTime2 = 0;
+			this.state.changeLimit = p.ChangeSpeed == 1.0
 				? 0
 				: (int)(((1.0 - p.ChangeSpeed) * (1.0 - p.ChangeSpeed) * 20000 + 32) *
 					(1.0 - p.ChangeRepeat + 0.1) / 1.1);
-			this.changeLimit2 = p.ChangeSpeed2 == 1.0
+			this.state.changeLimit2 = p.ChangeSpeed2 == 1.0
 				? 0
 				: (int)(((1.0 - p.ChangeSpeed2) * (1.0 - p.ChangeSpeed2) * 20000 + 32) *
 					(1.0 - p.ChangeRepeat + 0.1) / 1.1);
 
-			// Total reset
+			this.initState = this.state;
+
 			this.masterVolume = p.MasterVolume * p.MasterVolume;
 			this.wave = p.Wave;
 
@@ -190,54 +196,54 @@ namespace Moria.UltraFXR
 					if (this.repeatTime >= this.repeatLimit)
 					{
 						this.repeatTime = 0;
-						// RESET(false)
+						this.state = this.initState;
 					}
 				}
 
-				this.changePeriodTime++;
-				if (this.changePeriodTime >= this.changePeriod)
+				this.state.changePeriodTime++;
+				if (this.state.changePeriodTime >= this.state.changePeriod)
 				{
-					this.changeTime = 0;
-					this.changeTime2 = 0;
-					this.changePeriodTime = 0;
-					if (this.changeReached)
+					this.state.changeTime = 0;
+					this.state.changeTime2 = 0;
+					this.state.changePeriodTime = 0;
+					if (this.state.changeReached)
 					{
-						this.period /= this.changeAmount;
-						this.changeReached = false;
+						this.state.period /= this.state.changeAmount;
+						this.state.changeReached = false;
 					}
-					if (this.changeReached2)
+					if (this.state.changeReached2)
 					{
-						this.period /= this.changeAmount2;
-						this.changeReached2 = false;
-					}
-				}
-
-				if (!this.changeReached)
-				{
-					this.changeTime++;
-					if (this.changeTime >= this.changeLimit)
-					{
-						this.changeReached = true;
-						this.period *= this.changeAmount;
+						this.state.period /= this.state.changeAmount2;
+						this.state.changeReached2 = false;
 					}
 				}
 
-				if (this.changeReached2)
+				if (!this.state.changeReached)
 				{
-					this.changeTime2++;
-					if (this.changeTime2 >= this.changeLimit2)
+					this.state.changeTime++;
+					if (this.state.changeTime >= this.state.changeLimit)
 					{
-						this.changeReached2 = true;
-						this.period *= this.changeAmount2;
+						this.state.changeReached = true;
+						this.state.period *= this.state.changeAmount;
 					}
 				}
 
-				this.slide += this.deltaSlide;
-				this.period *= this.slide;
-
-				if (this.period >= this.maxPeriod)
+				if (this.state.changeReached2)
 				{
-					this.period = this.maxPeriod;
+					this.state.changeTime2++;
+					if (this.state.changeTime2 >= this.state.changeLimit2)
+					{
+						this.state.changeReached2 = true;
+						this.state.period *= this.state.changeAmount2;
+					}
+				}
+
+				this.state.slide += this.state.deltaSlide;
+				this.state.period *= this.state.slide;
+
+				if (this.state.period >= this.state.maxPeriod)
+				{
+					this.state.period = this.state.maxPeriod;
 					if (this.minFrequency > 0)
 					{
 						this.muted = true;
@@ -246,19 +252,19 @@ namespace Moria.UltraFXR
 
 				int periodTemp;
 				{
-					double p = this.period;
+					double p = this.state.period;
 					if (this.vibratoAmplitude > 0.0)
 					{
 						this.vibratoPhase += this.vibratoSpeed;
-						p = this.period * (1.0 + Math.Sin(this.vibratoPhase) * this.vibratoAmplitude);
+						p = this.state.period * (1.0 + Math.Sin(this.vibratoPhase) * this.vibratoAmplitude);
 					}
 					periodTemp = Math.Max(8, (int)p);
 				}
 
 				if (this.wave == BfxrWave.Square)
 				{
-					this.squareDuty += this.dutySweep;
-					this.squareDuty = Math.Max(0, Math.Min(0.5, this.squareDuty));
+					this.state.squareDuty += this.state.dutySweep;
+					this.state.squareDuty = Math.Max(0, Math.Min(0.5, this.state.squareDuty));
 				}
 
 				this.envelopeTime++;
@@ -356,7 +362,7 @@ namespace Moria.UltraFXR
 						switch (this.wave)
 						{
 							case BfxrWave.Square:
-								osample = relPhase < this.squareDuty ? 0.5 : -0.5;
+								osample = relPhase < this.state.squareDuty ? 0.5 : -0.5;
 								break;
 							case BfxrWave.Saw:
 								osample = 1.0 - relPhase * 2.0;
