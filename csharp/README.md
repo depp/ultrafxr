@@ -6,9 +6,9 @@ As of February 2016, this project is not usable yet.  Currently, all it does is 
 
     UltraFXR.exe input.bfxrsound output.wav
 
-## Future plans
+This should produce output roughly identical to BFXR's output.  If it doesn't, file a bug.
 
-* Full BFXR compatibility.  Some BFXR features are not correctly implemented yet.
+## Future plans
 
 * Additional sounds.  At least FM synthesis, since it's good for generating percussive, metallic, and wooden sounds.
 
