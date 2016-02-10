@@ -228,7 +228,7 @@ namespace Moria.UltraFXR
 					}
 				}
 
-				if (this.state.changeReached2)
+				if (!this.state.changeReached2)
 				{
 					this.state.changeTime2++;
 					if (this.state.changeTime2 >= this.state.changeLimit2)
