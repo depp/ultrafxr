@@ -12,6 +12,44 @@ namespace Moria.UltraFXR
 
 		private readonly Random rand;
 
+		private class PinkGenerator
+		{
+			private const int N = 5;
+			private const double Range = 128.0;
+
+			private readonly Random rand;
+			private uint key;
+			private readonly int[] whiteValues;
+
+			public PinkGenerator(Random rand)
+			{
+				this.rand = rand;
+				this.key = 0;
+				this.whiteValues = new int[N];
+				for (int i = 0; i < N; i++)
+				{
+					this.whiteValues[i] = (int)(rand.NextDouble() * (Range / N));
+				}
+			}
+
+			public float Next()
+			{
+				uint lastKey = this.key;
+				this.key = (this.key + 1) & ((1 << N) - 1);
+				uint diff = this.key ^ lastKey;
+				int sum = 0;
+				for (int i = 0; i < N; i++)
+				{
+					if ((diff & (1u << i)) != 0)
+					{
+						this.whiteValues[i] = (int)(this.rand.NextDouble() * (Range / N));
+					}
+					sum += this.whiteValues[i];
+				}
+				return (float)sum / 64.0f - 1.0f;
+			}
+		}
+
 		private struct State
 		{
 			public double period, maxPeriod;
@@ -26,6 +64,7 @@ namespace Moria.UltraFXR
 
 		private State state;
 		private State initState;
+		private readonly PinkGenerator pinkGenerator;
 
 		// Permanent
 		private double masterVolume;
@@ -92,6 +131,7 @@ namespace Moria.UltraFXR
 					(1.0 - p.ChangeRepeat + 0.1) / 1.1);
 
 			this.initState = this.state;
+			this.pinkGenerator = new PinkGenerator(this.rand);
 
 			this.masterVolume = p.MasterVolume * p.MasterVolume;
 			this.wave = p.Wave;
@@ -166,7 +206,7 @@ namespace Moria.UltraFXR
 			}
 			for (int i = 0; i < this.pinkNoiseBuffer.Length; i++)
 			{
-				this.pinkNoiseBuffer[i] = 0.0f;
+				this.pinkNoiseBuffer[i] = this.pinkGenerator.Next();
 			}
 			float val = 0.0f;
 			for (int i = 0; i < this.loResNoiseBuffer.Length; i++)
@@ -335,7 +375,7 @@ namespace Moria.UltraFXR
 							case BfxrWave.Pink:
 								for (var k = 0; k < this.pinkNoiseBuffer.Length; k++)
 								{
-									this.pinkNoiseBuffer[k] = 0.0f;
+									this.pinkNoiseBuffer[k] = this.pinkGenerator.Next();
 								}
 								break;
 							case BfxrWave.Tan:
