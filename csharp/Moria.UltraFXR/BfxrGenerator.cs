@@ -121,7 +121,7 @@ namespace Moria.UltraFXR
 			this.lpFilterDeltaPos = 0.0;
 			this.lpFilterCutoff = 0.1 * p.LPFilterCutoff * p.LPFilterCutoff * p.LPFilterCutoff;
 			this.lpFilterDeltaCutoff = 1.0 + 0.0001 * p.LPFilterCutoffSweep;
-			this.lpFilterDamping = 5.1 / (1.0 + 20 * p.LPFilterResonance * p.LPFilterResonance) * (0.01 + this.lpFilterCutoff);
+			this.lpFilterDamping = 1.0 - 5.0 / (1.0 + 20 * p.LPFilterResonance * p.LPFilterResonance) * (0.01 + this.lpFilterCutoff);
 
 			this.hpFilterPos = 0.0;
 			this.hpFilterCutoff = 0.1 * p.HPFilterCutoff * p.HPFilterCutoff;
