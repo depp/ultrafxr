@@ -171,7 +171,7 @@ namespace Moria.UltraFXR
 
 			this.hpFilterPos = 0.0;
 			this.hpFilterCutoff = 0.1 * p.HPFilterCutoff * p.HPFilterCutoff;
-			this.hpFilterDeltaCutoff = 1.0 + 0.003 * p.HPFilterCutoffSweep;
+			this.hpFilterDeltaCutoff = 1.0 + 0.0003 * p.HPFilterCutoffSweep;
 
 			this.vibratoPhase = 0;
 			this.vibratoSpeed = 0.01 * p.VibratoSpeed * p.VibratoSpeed;
