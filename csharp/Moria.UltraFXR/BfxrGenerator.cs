@@ -347,7 +347,7 @@ namespace Moria.UltraFXR
 				if (this.flanger)
 				{
 					this.flangerOffset += this.flangerDeltaOffset;
-					flangerInt = Math.Max(0, Math.Min(this.flangerBuffer.Length - 1, (int)this.flangerOffset));
+					flangerInt = Math.Max(0, Math.Min(this.flangerBuffer.Length - 1, (int)Math.Abs(this.flangerOffset)));
 				}
 
 				if (this.filters && this.hpFilterDeltaCutoff != 0)
