@@ -1,4 +1,13 @@
-CFLAGS := -std=c11 -Wall -Wextra -Wpointer-arith -Wwrite-strings -Wmissing-prototypes -Wdouble-promotion -Werror=implicit-function-declaration -Winit-self -Wstrict-prototypes
+CFLAGS = -O2
+
+base_cflags := -std=c11 -Wall -Wextra -Wpointer-arith -Wwrite-strings -Wmissing-prototypes -Wdouble-promotion -Werror=implicit-function-declaration -Winit-self -Wstrict-prototypes
+
+override CFLAGS := $(base_cflags) $(CFLAGS)
+
+ifdef ASAN
+override CFLAGS += '-fsanitize=address'
+override LIBS += '-fsanitize=address'
+endif
 
 objs := sexpr_token.o sexpr_token_test.o testutil.o
 
