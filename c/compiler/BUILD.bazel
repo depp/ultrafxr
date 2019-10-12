@@ -3,12 +3,14 @@ load("//c:copts.bzl", "COPTS")
 cc_library(
     name = "compiler",
     srcs = [
+        "hash.c",
         "sexpr_token.c",
         "source_text.c",
         ":error_src",
     ],
     hdrs = [
         "error.h",
+        "hash.h",
         "sexpr.h",
         "source.h",
     ],
