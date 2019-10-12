@@ -6,6 +6,7 @@ cc_library(
         "hash.c",
         "sexpr_token.c",
         "source_text.c",
+        "symbol.c",
         ":error_src",
     ],
     hdrs = [
@@ -13,6 +14,7 @@ cc_library(
         "hash.h",
         "sexpr.h",
         "source.h",
+        "symbol.h",
     ],
     copts = COPTS,
 )
@@ -46,6 +48,19 @@ cc_test(
     size = "small",
     srcs = [
         "source_text_test.c",
+    ],
+    copts = COPTS,
+    deps = [
+        ":compiler",
+        ":testutil",
+    ],
+)
+
+cc_test(
+    name = "symbol_test",
+    size = "small",
+    srcs = [
+        "symbol_test.c",
     ],
     copts = COPTS,
     deps = [
