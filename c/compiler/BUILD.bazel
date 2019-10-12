@@ -41,7 +41,7 @@ cc_binary(
 )
 
 genrule(
-    name = "error",
+    name = "error_src",
     srcs = ["error.h"],
     outs = [
         "error_name.c",
@@ -58,7 +58,10 @@ cc_test(
     srcs = [
         "error.h",
         "error_test.c",
-        ":error",
+        ":error_src",
     ],
     copts = COPTS,
+    deps = [
+        ":testutil",
+    ],
 )
