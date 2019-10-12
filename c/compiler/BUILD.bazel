@@ -3,8 +3,14 @@ load("//c:copts.bzl", "COPTS")
 cc_library(
     name = "compiler",
     srcs = [
-        "sexpr.h",
         "sexpr_token.c",
+        "source_text.c",
+        ":error_src",
+    ],
+    hdrs = [
+        "error.h",
+        "sexpr.h",
+        "source.h",
     ],
     copts = COPTS,
 )
@@ -24,8 +30,20 @@ cc_test(
     name = "sexpr_token_test",
     size = "small",
     srcs = [
-        "sexpr.h",
         "sexpr_token_test.c",
+    ],
+    copts = COPTS,
+    deps = [
+        ":compiler",
+        ":testutil",
+    ],
+)
+
+cc_test(
+    name = "source_text_test",
+    size = "small",
+    srcs = [
+        "source_text_test.c",
     ],
     copts = COPTS,
     deps = [
