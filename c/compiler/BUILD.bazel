@@ -33,3 +33,32 @@ cc_test(
         ":testutil",
     ],
 )
+
+cc_binary(
+    name = "error_gen",
+    srcs = ["error_gen.c"],
+    copts = COPTS,
+)
+
+genrule(
+    name = "error",
+    srcs = ["error.h"],
+    outs = [
+        "error_name.c",
+        "error_text.c",
+    ],
+    cmd = "./$(location :error_gen) $(location error.h) " +
+          "$(location error_name.c) $(location error_text.c)",
+    tools = [":error_gen"],
+)
+
+cc_test(
+    name = "error_test",
+    size = "small",
+    srcs = [
+        "error.h",
+        "error_test.c",
+        ":error",
+    ],
+    copts = COPTS,
+)
