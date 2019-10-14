@@ -53,7 +53,7 @@ int main(int argc, char **argv) {
             success = false;
         }
     }
-    free(tab.arr);
+    ufxr_symtab_destroy(&tab);
     if (!success) {
         fputs("FAILED\n", stderr);
         return 1;

@@ -30,6 +30,9 @@ struct ufxr_symtab {
     uint32_t alloc;
 };
 
+// Destroy a symtab, free memory, and free all symbol data.
+void ufxr_symtab_destroy(struct ufxr_symtab *restrict tab);
+
 // Add a symbol to the symbol table. Return the symbol index, or a negative
 // error code above (SYM_NOMEM or SYM_TOOLONG).
 int32_t ufxr_symtab_add(struct ufxr_symtab *restrict tab, const char *text,

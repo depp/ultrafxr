@@ -7,6 +7,17 @@
 #include <stdlib.h>
 #include <string.h>
 
+void ufxr_symtab_destroy(struct ufxr_symtab *restrict tab) {
+    struct ufxr_syment *restrict es = tab->arr;
+    uint32_t n = tab->alloc;
+    for (uint32_t i = 0; i < n; i++) {
+        if (es[i].index != 0) {
+            free(es[i].text);
+        }
+    }
+    free(es);
+}
+
 // Normalize a symbol to lowercase, write the result to out, and return the
 // hash.
 static uint32_t ufxr_symnorm(char *restrict out, const char *restrict text,
