@@ -1,5 +1,6 @@
 #include "testutil.h"
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -119,4 +120,64 @@ const char *quote_mem(const char *text, size_t len) {
     *out++ = '"';
     *out = '\0';
     return buf;
+}
+
+static const char HEXDIGIT[16] = "0123456789abcdef";
+
+const char *show_float(double x) {
+    union {
+        double f;
+        uint64_t u;
+    } v;
+    v.f = x;
+    bool sign = (v.u >> 63) != 0;
+    bool mzero = (v.u & ((1ull << 52) - 1)) == 0;
+    uint32_t exponent = (uint32_t)(v.u >> 52) & ((1u << 11) - 1);
+    if (exponent == 2047) {
+        if (mzero) {
+            return sign ? "-infinity" : "+infinity";
+        }
+        return "nan";
+    }
+    char buf[24];
+    buf[0] = (v.u >> 63) ? '-' : '+';
+    buf[1] = '0';
+    buf[2] = 'x';
+    buf[3] = '1';
+    buf[4] = '.';
+    for (int i = 0; i < 13; i++) {
+        buf[5 + i] = HEXDIGIT[(v.u >> ((13 - i) * 4)) & 15];
+    }
+    buf[18] = 'p';
+    int expv;
+    if (exponent >= 1023) {
+        buf[19] = '+';
+        expv = exponent - 1023;
+    } else if (exponent != 0) {
+        buf[19] = '-';
+        expv = 1023 - exponent;
+    } else if (mzero) {
+        buf[19] = '+';
+        expv = 0;
+    } else {
+        buf[19] = '-';
+        expv = 1022;
+    }
+    char tmp[4];
+    for (int i = 0; i < 3; i++) {
+        tmp[3 - i] = expv % 10;
+        expv /= 10;
+    }
+    int i = 0;
+    while (i < 3 && tmp[i] == 0) {
+        i++;
+    }
+    size_t size = 20;
+    for (; i < 4; i++) {
+        buf[size++] = '0' + tmp[i];
+    }
+    char *out = temp_alloc(size + 1);
+    memcpy(out, buf, size);
+    out[size] = '\0';
+    return out;
 }

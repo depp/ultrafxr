@@ -4,6 +4,7 @@ cc_library(
     name = "compiler",
     srcs = [
         "hash.c",
+        "number_dectofloat.c",
         "sexpr_token.c",
         "source_text.c",
         "symbol.c",
@@ -12,6 +13,7 @@ cc_library(
     hdrs = [
         "error.h",
         "hash.h",
+        "number.h",
         "sexpr.h",
         "source.h",
         "symbol.h",
@@ -28,6 +30,19 @@ cc_library(
         "testutil.h",
     ],
     copts = COPTS,
+)
+
+cc_test(
+    name = "number_test",
+    size = "small",
+    srcs = [
+        "number_test.c",
+    ],
+    copts = COPTS,
+    deps = [
+        ":compiler",
+        ":testutil",
+    ],
 )
 
 cc_test(

@@ -15,3 +15,6 @@ const char *quote_str(const char *text);
 // Enclose a byte array in double quotes and escape characters inside as in a C
 // string.
 const char *quote_mem(const char *text, size_t len);
+
+// Convert a floating-point number to a string in hexadecimal format.
+const char *show_float(double x);
