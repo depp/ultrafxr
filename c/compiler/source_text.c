@@ -1,6 +1,7 @@
 // source_text.c - Tools for showing source locations.
 #include "c/compiler/source.h"
 
+#include "c/compiler/array.h"
 #include "c/compiler/error.h"
 
 #include <stdlib.h>
@@ -8,17 +9,12 @@
 static int ufxr_srctext_addbreak(struct ufxr_srctext *restrict st,
                                  uint32_t pos) {
     if (st->breakcount >= st->breakalloc) {
-        uint32_t nalloc = st->breakalloc == 0 ? 16 : st->breakalloc * 2;
-        size_t size = nalloc * sizeof(uint32_t);
-        if (size == 0) {
+        void *new_breaks = ufxr_array_expand(st->breaks, &st->breakalloc,
+                                             sizeof(*st->breaks), 8);
+        if (new_breaks == NULL) {
             return ERR_NOMEM;
         }
-        uint32_t *breaks = realloc(st->breaks, size);
-        if (breaks == NULL) {
-            return ERR_NOMEM;
-        }
-        st->breaks = breaks;
-        st->breakalloc = nalloc;
+        st->breaks = new_breaks;
     }
     st->breaks[st->breakcount] = pos;
     st->breakcount++;

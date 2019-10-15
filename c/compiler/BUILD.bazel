@@ -3,6 +3,8 @@ load("//c:copts.bzl", "COPTS")
 cc_library(
     name = "compiler",
     srcs = [
+        "array.c",
+        "array.h",
         "hash.c",
         "number_dectofloat.c",
         "sexpr_token.c",

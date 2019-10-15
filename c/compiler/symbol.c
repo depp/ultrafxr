@@ -91,9 +91,15 @@ int32_t ufxr_symtab_add(struct ufxr_symtab *restrict tab, const char *text,
         }
     }
     uint32_t newcount = tab->count + 1;
-    uint32_t minsize = newcount + (newcount >> 1);
+    uint32_t minsize;
+    if (__builtin_uadd_overflow(newcount, newcount >> 1, &minsize)) {
+        return SYM_NOMEM;
+    }
     if (tab->alloc < minsize) {
         uint32_t newsize = round_up_pow2(minsize);
+        if (newsize == 0) {
+            return SYM_NOMEM;
+        }
         struct ufxr_syment *restrict newes = malloc(newsize * sizeof(*newes));
         if (!newes) {
             return SYM_NOMEM;
