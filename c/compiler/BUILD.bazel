@@ -101,6 +101,7 @@ cc_binary(
     name = "error_gen",
     srcs = ["error_gen.c"],
     copts = COPTS,
+    deps = [":argparse"],
 )
 
 genrule(
@@ -111,7 +112,9 @@ genrule(
         "error_text.c",
     ],
     cmd = "./$(location :error_gen) $(location error.h) " +
-          "$(location error_name.c) $(location error_text.c)",
+          "-include=c/compiler/error.h " +
+          "-name-out=$(location error_name.c) -name-func=ufxr_errname " +
+          "-msg-out=$(location error_text.c) -msg-func=ufxr_errtext",
     tools = [":error_gen"],
 )
 
