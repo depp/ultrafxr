@@ -24,6 +24,17 @@ cc_library(
 )
 
 cc_library(
+    name = "argparse",
+    srcs = [
+        "argparse.c",
+    ],
+    hdrs = [
+        "argparse.h",
+    ],
+    copts = COPTS,
+)
+
+cc_library(
     name = "testutil",
     srcs = [
         "testutil.c",
