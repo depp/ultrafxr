@@ -6,11 +6,13 @@ cc_library(
         "array.c",
         "array.h",
         "hash.c",
+        "message_code.h",
         "number_dectofloat.c",
         "sexpr_token.c",
         "source_text.c",
         "symbol.c",
         ":error_src",
+        ":message_src",
     ],
     hdrs = [
         "error.h",
@@ -112,9 +114,19 @@ genrule(
         "error_text.c",
     ],
     cmd = "./$(location :error_gen) $(location error.h) " +
-          "-include=c/compiler/error.h " +
+          "-include=c/compiler/error.h -prefix=ERR_ " +
           "-name-out=$(location error_name.c) -name-func=ufxr_errname " +
           "-msg-out=$(location error_text.c) -msg-func=ufxr_errtext",
+    tools = [":error_gen"],
+)
+
+genrule(
+    name = "message_src",
+    srcs = ["message_code.h"],
+    outs = ["message_text.c"],
+    cmd = "./$(location :error_gen) $(location message_code.h) " +
+          "-include=c/compiler/message_code.h -prefix=MSG_ " +
+          "-msg-out=$(location message_text.c) -msg-func=ufxr_msgtext",
     tools = [":error_gen"],
 )
 

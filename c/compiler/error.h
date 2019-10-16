@@ -14,7 +14,7 @@ enum {
 // Return the name of the error code.
 //
 // ufxr_errname(ERR_LARGETEXT) = "LARGETEXT".
-const char *ufxr_errname(int err);
+const char *ufxr_errname(int code);
 
 // Return the textual description of the error code. Human readable.
-const char *ufxr_errtext(int err);
+const char *ufxr_errtext(int code);

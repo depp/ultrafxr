@@ -19,7 +19,8 @@ static const char USAGE[] =
     "  -msg-func=<name>    Use <name> as message lookup function name.\n"
     "  -msg-out=<file.c>   Write message lookup function to <file.h>.\n"
     "  -name-func=<name>   Use <name> as name lookup function name.\n"
-    "  -name-out=<file.c>  Write name lookup function to <file.h>.\n";
+    "  -name-out=<file.c>  Write name lookup function to <file.h>.\n"
+    "  -prefix=<prefix>    Parse error codes defined with prefix <prefix>.\n";
 
 // Print an error message for bad program usage and exit the program.
 static void die_usage(const char *msg) __attribute__((noreturn));
@@ -131,15 +132,35 @@ struct errs {
     size_t alloc;
 };
 
+struct strbuf {
+    char *start;
+    char *end;
+    char *alloc;
+};
+
+static void strbuf_putc(struct strbuf *s, unsigned char c) {
+    if (s->end == s->alloc) {
+        size_t alloc = s->alloc - s->start;
+        size_t new_alloc = alloc == 0 ? 64 : alloc * 2;
+        char *buf = realloc(s->start, new_alloc);
+        if (buf == NULL) {
+            die_nomem();
+        }
+        s->start = buf;
+        s->end = buf + alloc;
+        s->alloc = buf + new_alloc;
+    }
+    *s->end++ = c;
+}
+
 // Read the given input file and extract all of the error codes.
-static struct errs read_input(const char *filename) {
+static struct errs read_input(const char *filename, const char *prefix) {
     FILE *fp = fopen(filename, "r");
     if (fp == NULL) {
         die(errno, "could not open input");
     }
     char line[100];
     int lineno = 0;
-    char *text = NULL;
     // Scan for start of enums.
     while (true) {
         if (fgets(line, sizeof(line), fp) == NULL) {
@@ -153,7 +174,10 @@ static struct errs read_input(const char *filename) {
             break;
         }
     }
+    size_t prefixlen = prefix == NULL ? 0 : strlen(prefix);
     struct errs errs = {};
+    struct strbuf text = {};
+    size_t next_value = 0;
     // Read error descriptions and names.
     while (true) {
         if (fgets(line, sizeof(line), fp) == NULL) {
@@ -171,53 +195,104 @@ static struct errs read_input(const char *filename) {
         } else if (has_prefix(start, end, "//")) {
             // Error description.
             start = trim_start(start + 2, end);
-            if (start != end) {
-                if (text != NULL) {
-                    die_input(lineno, "multiple description for same error");
+            if (start == end) {
+                if (text.end != text.start && *(text.end - 1) != '\n') {
+                    strbuf_putc(&text, '\n');
                 }
+            } else {
+                bool need_space =
+                    text.start != text.end && *(text.end - 1) != '\n';
                 for (const char *ptr = start; ptr != end; ptr++) {
                     unsigned char c = *ptr;
-                    if (c < 32 || c > 126) {
+                    if (c == ' ') {
+                        need_space = true;
+                    } else if (c < 32 || c > 126) {
                         die_input(lineno,
-                                  "description contains non-ASCII text");
+                                  "description contains illegal character");
+                    } else {
+                        if (need_space) {
+                            strbuf_putc(&text, ' ');
+                        }
+                        strbuf_putc(&text, c);
+                        need_space = false;
                     }
                 }
-                text = copystr(start, end);
             }
-        } else if (has_prefix(start, end, "ERR_")) {
+        } else if (is_ident(*start)) {
+            if (prefix != NULL && !has_prefix(start, end, prefix)) {
+                die_input(lineno, "incorrect error code name prefix");
+            }
             // Error name.
-            if (text == NULL) {
+            if (text.start == text.end) {
                 die_input(lineno, "error code has no description");
             }
-            start += 4;
-            end = start;
-            while (is_ident(*end)) {
-                end++;
+            start += prefixlen;
+            const char *nend = start;
+            while (is_ident(*nend)) {
+                nend++;
             }
-            if (start == end) {
+            if (start == nend) {
                 die_input(lineno, "invalid error code name");
             }
-            char *name = copystr(start, end);
-            if (errs.count >= errs.alloc) {
-                errs.alloc = errs.alloc ? errs.alloc * 2 : 8;
+            const char *vstart = trim_start(nend, end);
+            size_t value;
+            if (*vstart == ',' || *vstart == '\0') {
+                value = next_value;
+            } else if (*vstart == '=') {
+                vstart = trim_start(vstart + 1, end);
+                char *vend;
+                long n = strtol(vstart, &vend, 0);
+                if (vend == vstart) {
+                    die_input(lineno, "could not parse error code value");
+                }
+                if (n < 0) {
+                    die_input(lineno, "negative error code value");
+                }
+                value = n;
+                next_value = value + 1;
+            } else {
+                die_input(lineno, "unexpected text after error code");
+            }
+            if (9999 < value) {
+                die_input(lineno, "error code value too large");
+            }
+            next_value = value + 1;
+            char *name = copystr(start, nend);
+            if (value >= errs.alloc) {
+                size_t new_alloc = errs.alloc == 0 ? 8 : errs.alloc;
+                do {
+                    new_alloc *= 2;
+                } while (value >= new_alloc);
                 errs.names =
-                    realloc(errs.names, errs.alloc * sizeof(errs.names));
+                    realloc(errs.names, new_alloc * sizeof(errs.names));
                 if (errs.names == NULL) {
                     die_nomem();
                 }
                 errs.texts =
-                    realloc(errs.texts, errs.alloc * sizeof(errs.texts));
+                    realloc(errs.texts, new_alloc * sizeof(errs.texts));
                 if (errs.texts == NULL) {
                     die_nomem();
                 }
+                for (size_t i = errs.alloc; i < new_alloc; i++) {
+                    errs.names[i] = NULL;
+                }
+                for (size_t i = errs.alloc; i < new_alloc; i++) {
+                    errs.texts[i] = NULL;
+                }
+                errs.alloc = new_alloc;
             }
-            errs.names[errs.count] = name;
-            errs.texts[errs.count] = text;
-            errs.count++;
-            text = NULL;
+            if (errs.names[value] != NULL) {
+                die_input(lineno, "error code already defined with this value");
+            }
+            errs.names[value] = name;
+            errs.texts[value] = copystr(text.start, text.end);
+            if (value + 1 > errs.count) {
+                errs.count = value + 1;
+            }
+            text.end = text.start;
         } else if (has_prefix(start, end, "};")) {
             // End of errors.
-            if (text != NULL) {
+            if (text.end != text.start) {
                 die_input(lineno, "expected error code name");
             }
             if (errs.count == 0) {
@@ -307,9 +382,12 @@ static char *write_str(char *buf, const char *restrict str) {
 static void dump_errs(const struct errs *restrict errs) {
     size_t maxmsg = 0;
     for (size_t i = 0; i < errs->count; i++) {
-        size_t len = strlen(errs->texts[i]);
-        if (len > maxmsg) {
-            maxmsg = len;
+        const char *text = errs->texts[i];
+        if (text != NULL) {
+            size_t len = strlen(errs->texts[i]);
+            if (len > maxmsg) {
+                maxmsg = len;
+            }
         }
     }
     char *buf = malloc(maxmsg * 4 + 1);
@@ -317,11 +395,15 @@ static void dump_errs(const struct errs *restrict errs) {
         die_nomem();
     }
     for (size_t i = 0; i < errs->count; i++) {
-        cprintf(stdout, "%zu %s \"", i, errs->names[i]);
-        char *out = write_str(buf, errs->texts[i]);
-        *out = '\0';
-        cwrite(stdout, buf, out - buf);
-        cputs(stdout, "\"\n");
+        const char *name = errs->names[i];
+        const char *text = errs->texts[i];
+        if (name != NULL) {
+            cprintf(stdout, "%zu %s \"", i, name);
+            char *out = write_str(buf, text);
+            *out = '\0';
+            cwrite(stdout, buf, out - buf);
+            cputs(stdout, "\"\n");
+        }
     }
     free(buf);
 }
@@ -341,12 +423,17 @@ static void write_array(const char *filename, char **arr, size_t count,
     size_t offset = 0;
     size_t maxsize = 0;
     for (size_t i = 0; i < count; i++) {
-        size_t size = strlen(arr[i]);
-        if (size > maxsize) {
-            maxsize = size;
+        const char *val = arr[i];
+        if (val != NULL) {
+            size_t size = strlen(arr[i]);
+            if (size > maxsize) {
+                maxsize = size;
+            }
+            offsets[i] = offset + 1;
+            offset += size + 1;
+        } else {
+            offsets[i] = 0;
         }
-        offsets[i] = offset;
-        offset += size + 1;
     }
     // Write output.
     FILE *fp;
@@ -370,18 +457,21 @@ static void write_array(const char *filename, char **arr, size_t count,
         die_nomem();
     }
     for (size_t i = 0; i < count; i++) {
-        char *out = buf;
-        memcpy(out, "    \"", 5);
-        out += 5;
-        out = write_str(out, arr[i]);
-        if (i + 1 == count) {
-            memcpy(out, "\";\n", 3);
-            out += 3;
-        } else {
-            memcpy(out, "\\0\"\n", 4);
-            out += 4;
+        const char *val = arr[i];
+        if (val != NULL) {
+            char *out = buf;
+            memcpy(out, "    \"", 5);
+            out += 5;
+            out = write_str(out, arr[i]);
+            if (i + 1 == count) {
+                memcpy(out, "\";\n", 3);
+                out += 3;
+            } else {
+                memcpy(out, "\\0\"\n", 4);
+                out += 4;
+            }
+            cwrite(fp, buf, out - buf);
         }
-        cwrite(fp, buf, out - buf);
     }
     free(buf);
     const char *atype;
@@ -398,11 +488,12 @@ static void write_array(const char *filename, char **arr, size_t count,
         cprintf(fp, "    %zu,\n", offsets[i]);
     }
     cputs(fp, "};\n");
-    cprintf(fp, "const char *%s(int err) {\n", funcname);
-    cputs(fp, "    if (err < 0 || ERR_COUNT <= err) {\n");
+    cprintf(fp, "const char *%s(int code) {\n", funcname);
+    cputs(fp, "    if (code < 0 || ERR_COUNT <= code) {\n");
     cputs(fp, "        return 0;\n");
     cputs(fp, "    }\n");
-    cputs(fp, "    return ERR_TEXT + ERR_OFFSET[err];\n");
+    cputs(fp, "    unsigned off = ERR_OFFSET[code];\n");
+    cputs(fp, "    return off == 0 ? 0 : ERR_TEXT + (off - 1);\n");
     cputs(fp, "}\n");
     if (fp != stdout) {
         if (fclose(fp) < 0) {
@@ -414,6 +505,7 @@ static void write_array(const char *filename, char **arr, size_t count,
 struct args {
     bool dump;
     const char *input;
+    const char *prefix;
     const char *include;
     const char *msg_func;
     const char *msg_out;
@@ -429,6 +521,7 @@ enum {
     OPT_MSG_OUT,
     OPT_NAME_FUNC,
     OPT_NAME_OUT,
+    OPT_PREFIX,
 };
 
 static const struct ufxr_argdef ARG_DEFS[] = {
@@ -439,6 +532,7 @@ static const struct ufxr_argdef ARG_DEFS[] = {
     {OPT_MSG_OUT, "msg-out", ARG_STRING},
     {OPT_NAME_FUNC, "name-func", ARG_STRING},
     {OPT_NAME_OUT, "name-out", ARG_STRING},
+    {OPT_PREFIX, "prefix", ARG_STRING},
     {},
 };
 
@@ -498,6 +592,9 @@ static void parse_args(struct args *args, int argc, char **argv) {
             case OPT_NAME_OUT:
                 args->name_out = ap.val;
                 break;
+            case OPT_PREFIX:
+                args->prefix = ap.val;
+                break;
             }
         }
     }
@@ -506,7 +603,7 @@ static void parse_args(struct args *args, int argc, char **argv) {
 int main(int argc, char **argv) {
     struct args args = {};
     parse_args(&args, argc - 1, argv + 1);
-    struct errs errs = read_input(args.input);
+    struct errs errs = read_input(args.input, args.prefix);
     if (args.dump) {
         dump_errs(&errs);
     }
