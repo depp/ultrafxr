@@ -7,6 +7,7 @@ cc_library(
         "array.h",
         "hash.c",
         "message_code.h",
+        "message_write.c",
         "number_dectofloat.c",
         "sexpr_token.c",
         "source_text.c",
@@ -18,6 +19,7 @@ cc_library(
     hdrs = [
         "error.h",
         "hash.h",
+        "message.h",
         "number.h",
         "sexpr.h",
         "source.h",
@@ -47,6 +49,17 @@ cc_library(
         "testutil.h",
     ],
     copts = COPTS,
+)
+
+cc_test(
+    name = "message_test",
+    size = "small",
+    srcs = ["message_test.c"],
+    copts = COPTS,
+    deps = [
+        ":compiler",
+        ":testutil",
+    ],
 )
 
 cc_test(

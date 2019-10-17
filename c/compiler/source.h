@@ -4,6 +4,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+// A range of source code.
+struct ufxr_srcspan {
+    uint32_t start; // Byte offset of the start.
+    uint32_t end;   // Byte offset past the end.
+};
+
 // A structure for displaying source code locations to the user. This translates
 // byte offsets to line numbers and extracts lines from the text.
 struct ufxr_srctext {

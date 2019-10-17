@@ -31,16 +31,17 @@ int ufxr_strbuf_putu64(struct ufxr_strbuf *restrict buf, uint64_t val);
 
 // String formatting parameter types.
 typedef enum {
-    FPARAM_END, // End of format parameters, if count is not specified.
-    FPARAM_U64, // A uint64_t value in decimal format.
+    FPARAM_END,     // End of format parameters, if count is not specified.
+    FPARAM_SRCSPAN, // A ufxr_srcspan, not used here (see message.h).
+    FPARAM_U64,     // A uint64_t value in decimal format.
 } ufxr_fmtparamtype;
 
 // A parameter for string interpolation.
 struct ufxr_fmtparam {
     ufxr_fmtparamtype type;
     union {
-        // FPARAM_U64.
-        uint64_t u64;
+        struct ufxr_srcspan srcspan; // FPARAM_SRCSPAN.
+        uint64_t u64;                // FPARAM_U64.
     } value;
 };
 
