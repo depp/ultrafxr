@@ -10,6 +10,7 @@ cc_library(
         "number_dectofloat.c",
         "sexpr_token.c",
         "source_text.c",
+        "strbuf.c",
         "symbol.c",
         ":error_src",
         ":message_src",
@@ -20,6 +21,7 @@ cc_library(
         "number.h",
         "sexpr.h",
         "source.h",
+        "strbuf.h",
         "symbol.h",
     ],
     copts = COPTS,
@@ -79,6 +81,17 @@ cc_test(
     srcs = [
         "source_text_test.c",
     ],
+    copts = COPTS,
+    deps = [
+        ":compiler",
+        ":testutil",
+    ],
+)
+
+cc_test(
+    name = "strbuf_test",
+    size = "small",
+    srcs = ["strbuf_test.c"],
     copts = COPTS,
     deps = [
         ":compiler",
