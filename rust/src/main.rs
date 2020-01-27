@@ -1,6 +1,8 @@
+mod sexpr;
 mod sourcepos;
 mod token;
 
+use sexpr::SExpr;
 use sourcepos::Pos;
 use std::fmt;
 use std::str::from_utf8;
@@ -28,5 +30,10 @@ fn main() {
         if tok.ty == Type::End {
             break;
         }
+    }
+    let mut toks = Tokenizer::new(TEXT.as_bytes());
+    let exprs = SExpr::parse(&mut toks);
+    for expr in exprs.iter() {
+        println!("{:?}", expr);
     }
 }

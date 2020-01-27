@@ -1,4 +1,4 @@
-use crate::sourcepos::Pos;
+use crate::sourcepos::{HasPos, Pos, Span};
 
 // Token types.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -18,6 +18,16 @@ pub struct Token<'a> {
     pub ty: Type,
     pub pos: Pos,
     pub text: &'a [u8],
+}
+
+impl HasPos for Token<'_> {
+    fn source_pos(&self) -> Span {
+        let Pos(off) = self.pos;
+        Span {
+            start: self.pos,
+            end: Pos(off + self.text.len() as u32),
+        }
+    }
 }
 
 pub struct Tokenizer<'a> {
