@@ -1,4 +1,4 @@
-use crate::sourcepos::{HasPos, Pos, Span};
+use crate::sourcepos::{HasPos, Span};
 use crate::token::{Token, Tokenizer, Type};
 use std::vec::Vec;
 
@@ -21,27 +21,43 @@ impl HasPos for SExpr {
     }
 }
 
+pub trait ErrorHandler {
+    fn handle(&mut self, pos: Span, message: &str);
+}
+
 impl SExpr {
     // Parse a sequence of s-expressions from a token stream.
-    pub fn parse(tokenizer: &mut Tokenizer) -> Box<[Self]> {
+    pub fn parse(
+        err_handler: &mut dyn ErrorHandler,
+        tokenizer: &mut Tokenizer,
+    ) -> Option<Box<[Self]>> {
         fn tok_str(tok: &Token) -> Box<str> {
-            // Can panic.
-            Box::from(std::str::from_utf8(tok.text).unwrap())
+            match std::str::from_utf8(tok.text) {
+                Ok(s) => Box::from(s),
+                // The tokenizer is supposed to check that the non-error tokens
+                // are valid UTF-8, but this is not guaranteed by the type
+                // system.
+                Err(_) => panic!("invalid token from tokenizer"),
+            }
         }
         let mut exprs = Vec::<SExpr>::new();
-        let mut groups = Vec::<(Pos, usize)>::new();
+        let mut groups = Vec::<(Span, usize)>::new();
         loop {
             let tok = tokenizer.next();
             let pos = tok.source_pos();
             match tok.ty {
                 Type::End => {
-                    if !groups.is_empty() {
-                        panic!("missing ')'");
+                    return match groups.pop() {
+                        Some((pos, _)) => {
+                            err_handler.handle(pos, "unmatched '('");
+                            None
+                        }
+                        None => Some(exprs.into_boxed_slice()),
                     }
-                    break;
                 }
                 Type::Error => {
-                    panic!("error token");
+                    err_handler.handle(pos, "unexpected character");
+                    return None;
                 }
                 Type::Comment => {}
                 Type::Symbol => exprs.push(SExpr {
@@ -53,25 +69,25 @@ impl SExpr {
                     content: Content::Number(tok_str(&tok)),
                 }),
                 Type::ParenOpen => {
-                    groups.push((pos.start, exprs.len()));
+                    groups.push((pos, exprs.len()));
                 }
                 Type::ParenClose => match groups.pop() {
-                    Some((start, offset)) => {
+                    Some((start_pos, offset)) => {
                         let items: Box<[SExpr]> = exprs.drain(offset..).collect();
                         exprs.push(SExpr {
                             pos: Span {
-                                start,
+                                start: start_pos.start,
                                 end: pos.source_pos().end,
                             },
                             content: Content::List(items),
                         });
                     }
                     _ => {
-                        panic!("extra ')'");
+                        err_handler.handle(pos, "extra ')'");
+                        return None;
                     }
                 },
             }
         }
-        exprs.into_boxed_slice()
     }
 }

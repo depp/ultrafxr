@@ -2,13 +2,13 @@ mod sexpr;
 mod sourcepos;
 mod token;
 
-use sexpr::SExpr;
-use sourcepos::Pos;
+use sexpr::{ErrorHandler, SExpr};
+use sourcepos::{Pos, Span};
 use std::fmt;
 use std::str::from_utf8;
 use token::{Token, Tokenizer, Type};
 
-const TEXT: &'static str = "(abc def)";
+const TEXT: &'static str = "(abc def) (ghi)";
 
 // Print a token to stdout for debugging.
 fn print_token(tok: &Token) {
@@ -22,6 +22,14 @@ fn print_token(tok: &Token) {
     println!("{:4} {:?} {:?}", off, ty, dtext);
 }
 
+struct StderrLogger;
+
+impl ErrorHandler for StderrLogger {
+    fn handle(&mut self, _pos: Span, message: &str) {
+        eprintln!("Error: {}", message);
+    }
+}
+
 fn main() {
     let mut toks = Tokenizer::new(TEXT.as_bytes());
     loop {
@@ -32,8 +40,13 @@ fn main() {
         }
     }
     let mut toks = Tokenizer::new(TEXT.as_bytes());
-    let exprs = SExpr::parse(&mut toks);
-    for expr in exprs.iter() {
-        println!("{:?}", expr);
+    let res = SExpr::parse(&mut StderrLogger {}, &mut toks);
+    match res {
+        Some(exprs) => {
+            for expr in exprs.iter() {
+                println!("{:?}", expr);
+            }
+        }
+        None => {}
     }
 }
