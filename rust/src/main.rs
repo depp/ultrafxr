@@ -1,8 +1,10 @@
+mod error;
 mod sexpr;
 mod sourcepos;
 mod token;
 
-use sexpr::{ErrorHandler, SExpr};
+use error::ErrorHandler;
+use sexpr::SExpr;
 use sourcepos::{Pos, Span};
 use std::fmt;
 use std::str::from_utf8;

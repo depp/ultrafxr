@@ -1,3 +1,4 @@
+use crate::error::ErrorHandler;
 use crate::sourcepos::{HasPos, Span};
 use crate::token::{Token, Tokenizer, Type};
 use std::vec::Vec;
@@ -19,10 +20,6 @@ impl HasPos for SExpr {
     fn source_pos(&self) -> Span {
         self.pos
     }
-}
-
-pub trait ErrorHandler {
-    fn handle(&mut self, pos: Span, message: &str);
 }
 
 impl SExpr {
