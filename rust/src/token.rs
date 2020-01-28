@@ -73,7 +73,7 @@ fn is_line_break(c: &u8) -> bool {
 fn drop_symbol(text: &[u8]) -> &[u8] {
     match text.iter().position(is_not_symbol) {
         Some(idx) => &text[idx..],
-        _ => text,
+        _ => &[],
     }
 }
 
@@ -308,16 +308,19 @@ mod tests {
         ];
         let mut tests = Tests::new();
         for (n, (input, ty)) in cases.iter().enumerate() {
-            let tok = Tokenizer::new(input).next();
+            let baretok = &input[..input.len() - 1];
             let etok = Token {
                 ty: *ty,
                 pos: Pos(1),
                 text: &input[..input.len() - 1],
             };
-            if !tests.add(tok_eq(&tok, &etok)) {
-                eprintln!("Test {} failed: input={}", n, Str(input));
-                eprintln!("    Got:    {}", Tok(&tok));
-                eprintln!("    Expect: {}", Tok(&etok));
+            for input in [baretok, input].iter() {
+                let tok = Tokenizer::new(input).next();
+                if !tests.add(tok_eq(&tok, &etok)) {
+                    eprintln!("Test {} failed: input={}", n, Str(input));
+                    eprintln!("    Got:    {}", Tok(&tok));
+                    eprintln!("    Expect: {}", Tok(&etok));
+                }
             }
         }
         tests.done()
