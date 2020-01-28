@@ -1,6 +1,8 @@
 use crate::error::ErrorHandler;
 use crate::sourcepos::{HasPos, Span};
 use crate::token::{Token, Tokenizer, Type};
+use std::fmt::Write;
+use std::str::from_utf8;
 use std::vec::Vec;
 
 #[derive(Debug)]
@@ -29,7 +31,7 @@ pub struct Parser {
 
 // Convert a token to an owned string.
 fn tok_str(tok: &Token) -> Box<str> {
-    match std::str::from_utf8(tok.text) {
+    match from_utf8(tok.text) {
         Ok(s) => Box::from(s),
         // The tokenizer is supposed to check that the non-error tokens are
         // valid UTF-8, but this is not guaranteed by the type system.
@@ -43,6 +45,41 @@ pub enum ParseResult {
     Incomplete,   // Token stream ended in middle of expression.
     Error,        // Did not reach end of token stream, encountered error.
     Value(SExpr), // Parsed complete expression.
+}
+
+// Send an error message
+fn handle_error_token(err_handler: &mut dyn ErrorHandler, pos: Span, text: &[u8]) {
+    let msg: String = match from_utf8(text) {
+        Ok(s) => match s.chars().next() {
+            Some(c) => {
+                if c <= '\x1f' || ('\u{7f}' <= c && c <= '\u{9f}') {
+                    format!("unexpected control character U+{:04X}", c as u32)
+                } else if c <= '\u{7f}' {
+                    if c == '\'' {
+                        "unexpected character <'>".to_owned()
+                    } else {
+                        format!("unexpected character '{}'", c)
+                    }
+                } else {
+                    format!("unexpected Unicode character U+{:04X}", c as u32)
+                }
+            }
+            // Tokenizer should not produce this.
+            _ => panic!("empty error token"),
+        },
+        Err(_) => {
+            if text.is_empty() {
+                // Tokenizer should not produce this.
+                panic!("empty error token");
+            }
+            let mut s = String::new();
+            for b in text.iter() {
+                write!(&mut s, "0x{:02x}, ", b).unwrap();
+            }
+            format!("invalid UTF-8 text (byte sequence {})", &s[..s.len() - 2])
+        }
+    };
+    err_handler.handle(pos, msg.as_ref());
 }
 
 impl Parser {
@@ -71,7 +108,7 @@ impl Parser {
                     }
                 }
                 Type::Error => {
-                    err_handler.handle(pos, "unexpected character");
+                    handle_error_token(err_handler, pos, tok.text);
                     return ParseResult::Error;
                 }
                 Type::Comment => {}

@@ -10,7 +10,7 @@ use std::fmt;
 use std::str::from_utf8;
 use token::{Token, Tokenizer, Type};
 
-const TEXT: &'static str = "(abc def) (ghi)";
+const TEXT: &'static [u8] = b"(abc def) (ghi) '";
 
 // Print a token to stdout for debugging.
 fn print_token(tok: &Token) {
@@ -33,7 +33,7 @@ impl ErrorHandler for StderrLogger {
 }
 
 fn main() {
-    let mut toks = Tokenizer::new(TEXT.as_bytes());
+    let mut toks = Tokenizer::new(TEXT);
     loop {
         let tok = toks.next();
         print_token(&tok);
@@ -41,7 +41,7 @@ fn main() {
             break;
         }
     }
-    let mut toks = Tokenizer::new(TEXT.as_bytes());
+    let mut toks = Tokenizer::new(TEXT);
     let mut parser = Parser::new();
     let mut err_handler = StderrLogger {};
     loop {
