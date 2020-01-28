@@ -22,69 +22,111 @@ impl HasPos for SExpr {
     }
 }
 
-impl SExpr {
-    // Parse a sequence of s-expressions from a token stream.
+pub struct Parser {
+    exprs: Vec<SExpr>,
+    groups: Vec<(Span, usize)>,
+}
+
+// Convert a token to an owned string.
+fn tok_str(tok: &Token) -> Box<str> {
+    match std::str::from_utf8(tok.text) {
+        Ok(s) => Box::from(s),
+        // The tokenizer is supposed to check that the non-error tokens are
+        // valid UTF-8, but this is not guaranteed by the type system.
+        Err(_) => panic!("invalid token from tokenizer"),
+    }
+}
+
+// A result from running the parser.
+pub enum ParseResult {
+    None,         // Token stream ended without any expressions in it.
+    Incomplete,   // Token stream ended in middle of expression.
+    Error,        // Did not reach end of token stream, encountered error.
+    Value(SExpr), // Parsed complete expression.
+}
+
+impl Parser {
+    pub fn new() -> Self {
+        return Parser {
+            exprs: Vec::new(),
+            groups: Vec::new(),
+        };
+    }
+
+    // Parse the next s-expression from the token stream.
     pub fn parse(
+        &mut self,
         err_handler: &mut dyn ErrorHandler,
         tokenizer: &mut Tokenizer,
-    ) -> Option<Box<[Self]>> {
-        fn tok_str(tok: &Token) -> Box<str> {
-            match std::str::from_utf8(tok.text) {
-                Ok(s) => Box::from(s),
-                // The tokenizer is supposed to check that the non-error tokens
-                // are valid UTF-8, but this is not guaranteed by the type
-                // system.
-                Err(_) => panic!("invalid token from tokenizer"),
-            }
-        }
-        let mut exprs = Vec::<SExpr>::new();
-        let mut groups = Vec::<(Span, usize)>::new();
+    ) -> ParseResult {
         loop {
             let tok = tokenizer.next();
             let pos = tok.source_pos();
             match tok.ty {
                 Type::End => {
-                    return match groups.pop() {
-                        Some((pos, _)) => {
-                            err_handler.handle(pos, "unmatched '('");
-                            None
-                        }
-                        None => Some(exprs.into_boxed_slice()),
+                    return if self.groups.is_empty() {
+                        ParseResult::None
+                    } else {
+                        ParseResult::Incomplete
                     }
                 }
                 Type::Error => {
                     err_handler.handle(pos, "unexpected character");
-                    return None;
+                    return ParseResult::Error;
                 }
                 Type::Comment => {}
-                Type::Symbol => exprs.push(SExpr {
-                    pos,
-                    content: Content::Symbol(tok_str(&tok)),
-                }),
-                Type::Number => exprs.push(SExpr {
-                    pos,
-                    content: Content::Number(tok_str(&tok)),
-                }),
-                Type::ParenOpen => {
-                    groups.push((pos, exprs.len()));
+                Type::Symbol => {
+                    let expr = SExpr {
+                        pos,
+                        content: Content::Symbol(tok_str(&tok)),
+                    };
+                    if self.groups.is_empty() {
+                        return ParseResult::Value(expr);
+                    }
+                    self.exprs.push(expr);
                 }
-                Type::ParenClose => match groups.pop() {
+                Type::Number => {
+                    let expr = SExpr {
+                        pos,
+                        content: Content::Number(tok_str(&tok)),
+                    };
+                    if self.groups.is_empty() {
+                        return ParseResult::Value(expr);
+                    }
+                    self.exprs.push(expr);
+                }
+                Type::ParenOpen => {
+                    self.groups.push((pos, self.exprs.len()));
+                }
+                Type::ParenClose => match self.groups.pop() {
                     Some((start_pos, offset)) => {
-                        let items: Box<[SExpr]> = exprs.drain(offset..).collect();
-                        exprs.push(SExpr {
+                        let items: Box<[SExpr]> = self.exprs.drain(offset..).collect();
+                        let expr = SExpr {
                             pos: Span {
                                 start: start_pos.start,
                                 end: pos.source_pos().end,
                             },
                             content: Content::List(items),
-                        });
+                        };
+                        if self.groups.is_empty() {
+                            return ParseResult::Value(expr);
+                        }
+                        self.exprs.push(expr);
                     }
                     _ => {
                         err_handler.handle(pos, "extra ')'");
-                        return None;
+                        return ParseResult::Error;
                     }
                 },
             }
+        }
+    }
+
+    // Finish parsing a document, and report errors for any unclosed groups.
+    pub fn finish(&self, err_handler: &mut dyn ErrorHandler) {
+        for (pos, _) in self.groups.iter().rev() {
+            err_handler.handle(*pos, "missing ')'");
+            return;
         }
     }
 }

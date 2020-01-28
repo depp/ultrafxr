@@ -4,7 +4,7 @@ mod sourcepos;
 mod token;
 
 use error::ErrorHandler;
-use sexpr::SExpr;
+use sexpr::{ParseResult, Parser};
 use sourcepos::{Pos, Span};
 use std::fmt;
 use std::str::from_utf8;
@@ -42,13 +42,19 @@ fn main() {
         }
     }
     let mut toks = Tokenizer::new(TEXT.as_bytes());
-    let res = SExpr::parse(&mut StderrLogger {}, &mut toks);
-    match res {
-        Some(exprs) => {
-            for expr in exprs.iter() {
-                println!("{:?}", expr);
+    let mut parser = Parser::new();
+    let mut err_handler = StderrLogger {};
+    loop {
+        match parser.parse(&mut err_handler, &mut toks) {
+            ParseResult::None => break,
+            ParseResult::Incomplete => {
+                parser.finish(&mut err_handler);
+                break;
+            }
+            ParseResult::Error => break,
+            ParseResult::Value(expr) => {
+                println!("Expr: {:?}", expr);
             }
         }
-        None => {}
     }
 }
