@@ -1,11 +1,13 @@
 mod error;
 mod sexpr;
 mod sourcepos;
+mod sourcetext;
 mod token;
 
 use error::ErrorHandler;
 use sexpr::{ParseResult, Parser};
 use sourcepos::{Pos, Span};
+use sourcetext::SourceText;
 use std::fmt;
 use std::str::from_utf8;
 use token::{Token, Tokenizer, Type};
@@ -34,6 +36,9 @@ impl ErrorHandler for StderrLogger {
 
 fn main() {
     let mut toks = Tokenizer::new(TEXT);
+    let src_text = SourceText::new(TEXT);
+    println!("lookup(1): {:?}", src_text.lookup(Pos(1)));
+    println!("line(0): {:?}", src_text.line(0));
     loop {
         let tok = toks.next();
         print_token(&tok);

@@ -1,6 +1,14 @@
 // A position within source text. The position represents a byte offset.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Pos(pub u32);
+
+impl Pos {
+    pub fn offset(&self) -> u32 {
+        match self {
+            Pos(offset) => *offset,
+        }
+    }
+}
 
 // A half-open range of source text. The positions represent byte offsets.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
