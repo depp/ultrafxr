@@ -4,6 +4,9 @@ mod sourcepos;
 mod sourcetext;
 mod token;
 
+#[cfg(test)]
+mod test;
+
 use error::ErrorHandler;
 use sexpr::{ParseResult, Parser};
 use sourcepos::{Pos, Span};

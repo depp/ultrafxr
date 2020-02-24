@@ -191,7 +191,7 @@ impl<'a> Tokenizer<'a> {
 mod tests {
     use super::{Token, Tokenizer, Type};
     use crate::sourcepos::Pos;
-    use std::error::Error;
+    use crate::test::*;
     use std::fmt;
 
     fn tok_eq(x: &Token, y: &Token) -> bool {
@@ -199,18 +199,6 @@ mod tests {
             && x.pos == y.pos
             && x.text.as_ptr() == y.text.as_ptr()
             && x.text.len() == y.text.len()
-    }
-
-    struct Str<'a>(&'a [u8]);
-
-    impl<'a> fmt::Display for Str<'a> {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            let Str(b) = self;
-            match std::str::from_utf8(b) {
-                Ok(s) => fmt::Debug::fmt(s, f),
-                _ => fmt::Debug::fmt(b, f),
-            }
-        }
     }
 
     struct Tok<'a>(&'a Token<'a>);
@@ -223,56 +211,6 @@ mod tests {
                 text,
             }) = self;
             write!(f, "pos={}, type={:?}, text={}", pos, ty, Str(text))
-        }
-    }
-
-    #[derive(Debug)]
-    struct TestFailure;
-
-    impl fmt::Display for TestFailure {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, "test failed")
-        }
-    }
-
-    impl Error for TestFailure {
-        fn description(&self) -> &str {
-            "test failed"
-        }
-    }
-
-    // An object which tracks the number of successful and failed tests.
-    struct Tests {
-        success: u32,
-        failure: u32,
-    }
-
-    impl Tests {
-        fn new() -> Tests {
-            Tests {
-                success: 0,
-                failure: 0,
-            }
-        }
-        fn add(&mut self, success: bool) -> bool {
-            if success {
-                self.success += 1;
-            } else {
-                self.failure += 1;
-            }
-            success
-        }
-        fn done(self) -> Result<(), TestFailure> {
-            if self.failure > 0 {
-                eprintln!(
-                    "Error: {} of {} tests failed.",
-                    self.failure,
-                    self.success + self.failure
-                );
-                Err(TestFailure)
-            } else {
-                Ok(())
-            }
         }
     }
 
