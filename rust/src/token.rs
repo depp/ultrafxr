@@ -63,8 +63,8 @@ fn is_space(c: u8) -> bool {
 }
 
 // Return true if the character can appear in a normal symbol.
-fn is_symbol(c: &u8) -> bool {
-    match *c as char {
+fn is_symbol(c: u8) -> bool {
+    match c as char {
         // Lower case
         'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j' | 'k' | 'l' | 'm'
             | 'n' | 'o' | 'p' | 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x' | 'y' | 'z' |
@@ -80,21 +80,16 @@ fn is_symbol(c: &u8) -> bool {
     }
 }
 
-// Return true if the character cannot appear in a normal symbol.
-fn is_not_symbol(c: &u8) -> bool {
-    !is_symbol(c)
-}
-
 // Return true if the character is a line break character, CR or LF.
-fn is_line_break(c: &u8) -> bool {
-    *c == b'\n' || *c == b'\r'
+fn is_line_break(c: u8) -> bool {
+    c == b'\n' || c == b'\r'
 }
 
-// Drop the prefix of a slice that contains symbol characters, return the rest.
-fn drop_symbol(text: &[u8]) -> &[u8] {
-    match text.iter().position(is_not_symbol) {
-        Some(idx) => &text[idx..],
-        _ => &[],
+/// Get the number of symbol characters at the beginning of a string.
+fn symbol_len(text: &[u8]) -> usize {
+    match text.iter().position(|&c| !is_symbol(c)) {
+        Some(idx) => idx,
+        _ => text.len(),
     }
 }
 
@@ -120,26 +115,23 @@ impl<'a> Tokenizer<'a> {
     // Return the next token from the stream.
     pub fn next(&mut self) -> Token<'a> {
         use Type::*;
-        let (first, mut rest) = loop {
-            match self.text.split_first() {
-                None => {
-                    return Token {
-                        ty: End,
-                        pos: Pos(self.pos),
-                        text: &[],
-                    }
-                }
-                Some((&first, rest)) => {
-                    if is_space(first) {
-                        self.text = rest;
-                        self.pos += 1;
-                    } else {
-                        break (first, rest);
-                    }
-                }
+        let pos = match self.text[self.pos as usize..]
+            .iter()
+            .position(|&c| !is_space(c))
+        {
+            Some(n) => self.pos as usize + n,
+            None => {
+                let pos = self.text.len() as u32;
+                self.pos = pos;
+                return Token {
+                    ty: End,
+                    pos: Pos(pos),
+                    text: &[],
+                };
             }
         };
-        let ty = match first as char {
+        let (&first, rest) = self.text[pos..].split_first().unwrap();
+        let (ty, len) = match first as char {
             // Lower case
             'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j' | 'k' | 'l' | 'm'
                 | 'n' | 'o' | 'p' | 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x' | 'y' | 'z' |
@@ -148,29 +140,19 @@ impl<'a> Tokenizer<'a> {
                 | 'N' | 'O' | 'P' | 'Q' | 'R' | 'S' | 'T' | 'U' | 'V' | 'W' | 'X' | 'Y' | 'Z' |
             // Punctuation
             '!' | '$' | '%' | '&' | '*' | '/' | ':' | '<'
-                | '=' | '>' | '?' | '@' | '^' | '_' | '~' => {
-                rest = drop_symbol(rest);
-                Symbol
-            }
-            '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => {
-                rest = drop_symbol(rest);
-                Number
-            }
-            ';' => {
-                rest = match rest.iter().position(is_line_break) {
-                    Some(idx) => &rest[idx..],
-                    _ => &[],
-                };
-                Comment
-            }
+                | '=' | '>' | '?' | '@' | '^' | '_' | '~' =>
+                (Symbol, symbol_len(rest)),
+            '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' =>
+                (Number, symbol_len(rest)),
+            ';' =>
+		(Comment, rest.iter().position(|&c| is_line_break(c)).unwrap_or(rest.len())),
             '.' => {
                 // Either a number or a symbol.
                 let ty = match rest.split_first() {
                     Some((c, _)) if b'0' <= *c && *c <= b'9' => Number,
                     _ => Symbol,
                 };
-                rest = drop_symbol(rest);
-                ty
+                (ty, symbol_len(rest))
             }
             '-' | '+' => {
                 // Either a number or a symbol.
@@ -189,22 +171,19 @@ impl<'a> Tokenizer<'a> {
                     }
                     _ => Symbol,
                 };
-                rest = drop_symbol(rest);
-                ty
+		(ty, symbol_len(rest))
             }
-            '(' => ParenOpen,
-            ')' => ParenClose,
-            _ => Error,
+            '(' => (ParenOpen, 0),
+            ')' => (ParenClose, 0),
+            _ => (Error, 0),
         };
-        let len = self.text.len() - rest.len();
-        let tok = Token {
+        let end = pos + 1 + len;
+        self.pos = end as u32;
+        Token {
             ty,
-            pos: Pos(self.pos + self.start_pos),
-            text: &self.text[..len],
-        };
-        self.text = rest;
-        self.pos += len as u32;
-        tok
+            pos: Pos(pos as u32 + self.start_pos),
+            text: &self.text[pos..end],
+        }
     }
 }
 
