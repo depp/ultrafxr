@@ -22,7 +22,7 @@ impl<'a> SourceText<'a> {
         let mut prev = b'\0';
         let mut lines = Vec::<u32>::new();
         lines.push(0);
-        for (n, c) in text.iter().enumerate() {
+        for (n, &c) in text.iter().enumerate() {
             match c {
                 b'\n' => {
                     if prev == b'\r' {
@@ -35,7 +35,7 @@ impl<'a> SourceText<'a> {
                 }
                 _ => {}
             }
-            prev = *c;
+            prev = c;
         }
         SourceText {
             text,
@@ -96,8 +96,8 @@ mod test {
         assert_eq!(input.len() + 1, outputs.len());
         let text = SourceText::new(input);
         let mut success = true;
-        for (n, expect) in (1..).zip(outputs.iter()) {
-            let expect = Some(match *expect {
+        for (n, &expect) in (1..).zip(outputs.iter()) {
+            let expect = Some(match expect {
                 (line, byte) => TextPos { line, byte },
             });
             let result = text.lookup(Pos(n));
@@ -108,8 +108,8 @@ mod test {
                 eprintln!("    Expect {:?}", expect);
             }
         }
-        for offset in [0, input.len() as u32 + 2].iter() {
-            if let Some(result) = text.lookup(Pos(*offset)) {
+        for &offset in [0, input.len() as u32 + 2].iter() {
+            if let Some(result) = text.lookup(Pos(offset)) {
                 success = false;
                 eprintln!("lookup({}): got {:?}, expect None", offset, result);
             }
@@ -156,9 +156,9 @@ mod test {
         let text = SourceText::new(b"abc\ndef\rghi\r\njkl");
         let lines: &[&'static [u8]] = &[b"abc", b"def", b"ghi", b"jkl"];
         let mut success = true;
-        for (n, line) in lines.iter().enumerate() {
+        for (n, &line) in lines.iter().enumerate() {
             let got = text.line(n as u32);
-            if got != *line {
+            if got != line {
                 success = false;
                 eprintln!("Line {}: got {:?}, expect {:?}", n, got, line);
             }

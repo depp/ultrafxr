@@ -149,7 +149,7 @@ impl<'a> Tokenizer<'a> {
             '.' => {
                 // Either a number or a symbol.
                 let ty = match rest.split_first() {
-                    Some((c, _)) if b'0' <= *c && *c <= b'9' => Number,
+                    Some((&c, _)) if b'0' <= c && c <= b'9' => Number,
                     _ => Symbol,
                 };
                 (ty, symbol_len(rest))
@@ -157,12 +157,12 @@ impl<'a> Tokenizer<'a> {
             '-' | '+' => {
                 // Either a number or a symbol.
                 let ty = match rest.split_first() {
-                    Some((c, rest)) => {
-                        if b'0' <= *c && *c <= b'9' {
+                    Some((&c, rest)) => {
+                        if b'0' <= c && c <= b'9' {
                             Number
-                        } else if *c == b'.' {
+                        } else if c == b'.' {
                             match rest.split_first() {
-                                Some((c, _)) if b'0' <= *c && *c <= b'9' => Number,
+                                Some((&c, _)) if b'0' <= c && c <= b'9' => Number,
                                 _ => Symbol,
                             }
                         } else {
@@ -316,10 +316,10 @@ mod tests {
             (b"\xff ", Error),
         ];
         let mut tests = Tests::new();
-        for (n, (input, ty)) in cases.iter().enumerate() {
+        for (n, &(input, ty)) in cases.iter().enumerate() {
             let baretok = &input[..input.len() - 1];
             let etok = Token {
-                ty: *ty,
+                ty,
                 pos: Pos(1),
                 text: &input[..input.len() - 1],
             };
