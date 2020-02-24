@@ -52,7 +52,7 @@ impl<'a> SourceText<'a> {
         if pos < self.span.start || self.span.end < pos {
             return None;
         }
-        let offset = pos.offset() - self.span.start.offset();
+        let offset = pos.0 - self.span.start.0;
         Some(match self.lines.binary_search(&offset) {
             Ok(i) => TextPos {
                 line: i as u32,

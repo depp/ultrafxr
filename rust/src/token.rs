@@ -98,9 +98,7 @@ impl<'a> Tokenizer<'a> {
                 Some((&first, rest)) => {
                     if is_space(first) {
                         self.text = rest;
-                        self.pos = match self.pos {
-                            Pos(i) => Pos(i + 1),
-                        };
+                        self.pos = Pos(self.pos.0 + 1);
                     } else {
                         break (first, rest);
                     }
@@ -171,9 +169,7 @@ impl<'a> Tokenizer<'a> {
             text: &self.text[..len],
         };
         self.text = rest;
-        self.pos = match self.pos {
-            Pos(i) => Pos(i + len as u32),
-        };
+        self.pos = Pos(self.pos.0 + len as u32);
         tok
     }
 }
