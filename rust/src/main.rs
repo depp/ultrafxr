@@ -1,3 +1,4 @@
+mod color;
 mod error;
 mod sexpr;
 mod sourcepos;
@@ -8,6 +9,7 @@ mod utf8;
 #[cfg(test)]
 mod test;
 
+use color::{Style, StyleFlag};
 use error::ErrorHandler;
 use sexpr::{ParseResult, Parser};
 use sourcepos::{Pos, Span};
@@ -40,6 +42,13 @@ impl ErrorHandler for StderrLogger {
 }
 
 fn main() {
+    use StyleFlag::*;
+    println!(
+        "{}red {}green bold{}",
+        Style(&[FgRed]),
+        Style(&[FgGreen, Bold]),
+        Style(&[Reset])
+    );
     let mut toks = match Tokenizer::new(TEXT) {
         Ok(toks) => toks,
         Err(e) => {
