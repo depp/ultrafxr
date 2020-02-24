@@ -1,5 +1,5 @@
 use crate::sourcepos::{HasPos, Pos, Span};
-
+use crate::utf8::parse_character;
 use std::error::Error;
 use std::fmt;
 
@@ -175,7 +175,10 @@ impl<'a> Tokenizer<'a> {
             }
             '(' => (ParenOpen, 0),
             ')' => (ParenClose, 0),
-            _ => (Error, 0),
+            _ => {
+		let (_, n) = parse_character(&self.text[pos..]);
+		(Error, n-1)
+	    }
         };
         let end = pos + 1 + len;
         self.pos = end as u32;
@@ -252,6 +255,7 @@ mod tests {
             (b"\x7f ", Error),
             (b"\x80 ", Error),
             (b"\xff ", Error),
+            (b"\xc2\x80 ", Error),
         ];
         let mut tests = Tests::new();
         for (n, &(input, ty)) in cases.iter().enumerate() {

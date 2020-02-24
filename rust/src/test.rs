@@ -6,10 +6,22 @@ pub struct Str<'a>(pub &'a [u8]);
 
 impl<'a> fmt::Display for Str<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Str(b) = self;
-        match std::str::from_utf8(b) {
+        match std::str::from_utf8(self.0) {
             Ok(s) => fmt::Debug::fmt(s, f),
-            _ => fmt::Debug::fmt(b, f),
+            _ => {
+                f.write_str("b\"")?;
+                for &b in self.0.iter() {
+                    if 32 <= b && b <= 126 {
+                        if b == b'\\' || b == b'"' {
+                            f.write_str("\\")?;
+                        }
+                        write!(f, "{}", b as char)?;
+                    } else {
+                        write!(f, "\\x{:02x}", b)?;
+                    }
+                }
+                f.write_str("\"")
+            }
         }
     }
 }

@@ -3,6 +3,7 @@ mod sexpr;
 mod sourcepos;
 mod sourcetext;
 mod token;
+mod utf8;
 
 #[cfg(test)]
 mod test;
