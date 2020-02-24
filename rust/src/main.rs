@@ -9,6 +9,7 @@ use sexpr::{ParseResult, Parser};
 use sourcepos::{Pos, Span};
 use sourcetext::SourceText;
 use std::fmt;
+use std::process;
 use std::str::from_utf8;
 use token::{Token, Tokenizer, Type};
 
@@ -35,7 +36,13 @@ impl ErrorHandler for StderrLogger {
 }
 
 fn main() {
-    let mut toks = Tokenizer::new(TEXT);
+    let mut toks = match Tokenizer::new(TEXT) {
+        Ok(toks) => toks,
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            process::exit(1);
+        }
+    };
     let src_text = SourceText::new(TEXT);
     println!("lookup(1): {:?}", src_text.lookup(Pos(1)));
     println!("line(0): {:?}", src_text.line(0));
@@ -46,7 +53,7 @@ fn main() {
             break;
         }
     }
-    let mut toks = Tokenizer::new(TEXT);
+    toks.rewind();
     let mut parser = Parser::new();
     let mut err_handler = StderrLogger {};
     loop {

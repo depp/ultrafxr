@@ -1,5 +1,25 @@
 use crate::sourcepos::{HasPos, Pos, Span};
 
+use std::error::Error;
+use std::fmt;
+
+/// Tokenizer error. Not used for syntax errors.
+#[derive(Debug, Clone, Copy)]
+pub enum TokenError {
+    TooMuchText,
+}
+
+impl fmt::Display for TokenError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use TokenError::*;
+        f.write_str(match self {
+            TooMuchText => "too much text, exceeds 4 GiB maximum total input size",
+        })
+    }
+}
+
+impl Error for TokenError {}
+
 // Token types.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Type {
@@ -32,7 +52,8 @@ impl HasPos for Token<'_> {
 
 pub struct Tokenizer<'a> {
     text: &'a [u8],
-    pos: Pos,
+    pos: u32,
+    start_pos: u32,
 }
 
 // Return true if the character is ASCII whitespace.
@@ -79,8 +100,21 @@ fn drop_symbol(text: &[u8]) -> &[u8] {
 
 impl<'a> Tokenizer<'a> {
     // Create a new tokenizer that returns a stream of tokens from the given text.
-    pub fn new(text: &'a [u8]) -> Self {
-        Tokenizer { text, pos: Pos(1) }
+    pub fn new(text: &'a [u8]) -> Result<Self, TokenError> {
+        let start_pos: u32 = 1;
+        if text.len() > (u32::max_value() - start_pos) as usize {
+            return Err(TokenError::TooMuchText);
+        }
+        Ok(Tokenizer {
+            text,
+            pos: 0,
+            start_pos,
+        })
+    }
+
+    /// Rewind tokenizer to start of stream.
+    pub fn rewind(&mut self) -> () {
+        self.pos = 0;
     }
 
     // Return the next token from the stream.
@@ -91,14 +125,14 @@ impl<'a> Tokenizer<'a> {
                 None => {
                     return Token {
                         ty: End,
-                        pos: self.pos,
+                        pos: Pos(self.pos),
                         text: &[],
                     }
                 }
                 Some((&first, rest)) => {
                     if is_space(first) {
                         self.text = rest;
-                        self.pos = Pos(self.pos.0 + 1);
+                        self.pos += 1;
                     } else {
                         break (first, rest);
                     }
@@ -165,11 +199,11 @@ impl<'a> Tokenizer<'a> {
         let len = self.text.len() - rest.len();
         let tok = Token {
             ty,
-            pos: self.pos,
+            pos: Pos(self.pos + self.start_pos),
             text: &self.text[..len],
         };
         self.text = rest;
-        self.pos = Pos(self.pos.0 + len as u32);
+        self.pos += len as u32;
         tok
     }
 }
@@ -311,7 +345,16 @@ mod tests {
                 text: &input[..input.len() - 1],
             };
             for input in [baretok, input].iter() {
-                let tok = Tokenizer::new(input).next();
+                let mut toks = match Tokenizer::new(input) {
+                    Ok(toks) => toks,
+                    Err(e) => {
+                        eprintln!("Test {} failed: input={}", n, Str(input));
+                        eprintln!("    Error: {}", e);
+                        tests.add(false);
+                        continue;
+                    }
+                };
+                let tok = toks.next();
                 if !tests.add(tok_eq(&tok, &etok)) {
                     eprintln!("Test {} failed: input={}", n, Str(input));
                     eprintln!("    Got:    {}", Tok(&tok));
