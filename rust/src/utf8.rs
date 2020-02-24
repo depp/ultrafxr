@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use std::str::{from_utf8, from_utf8_unchecked};
 
 /// Parse a single Unicode code point from a possibly invalid stream of UTF-8
 /// data. Returns the decoded character and the character length in bytes.
@@ -33,9 +34,43 @@ pub fn parse_character(text: &[u8]) -> (Option<char>, usize) {
     (c, n + 1)
 }
 
+/// Iterator over segments of UTF-8 text that may contain errors.
+pub struct UTF8Segments<'a>(pub &'a [u8]);
+
+/// A segment of valid or invalid UTF-8 text.
+pub type UTF8Segment<'a> = Result<&'a str, &'a [u8]>;
+
+impl<'a> Iterator for UTF8Segments<'a> {
+    type Item = UTF8Segment<'a>;
+    fn next(&mut self) -> Option<Self::Item> {
+        let text = self.0;
+        if text.len() == 0 {
+            None
+        } else {
+            Some(match from_utf8(text) {
+                Ok(s) => {
+                    self.0 = &text[s.len()..];
+                    Ok(s)
+                }
+                Err(e) => {
+                    let n = e.valid_up_to();
+                    if n == 0 {
+                        let (_, n) = parse_character(text);
+                        self.0 = &text[n..];
+                        Err(&text[..n])
+                    } else {
+                        self.0 = &text[n..];
+                        Ok(unsafe { from_utf8_unchecked(&text[..n]) })
+                    }
+                }
+            })
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
-    use super::parse_character;
+    use super::*;
     use crate::test::*;
 
     #[test]
@@ -149,5 +184,25 @@ mod test {
             }
         }
         tests.done()
+    }
+
+    #[test]
+    fn test_segments() -> Result<(), TestFailure> {
+        let input: &'static [u8] = b"abc \x80 def \xe0\xa0\xf0";
+        let expect: &'static [UTF8Segment<'static>] = &[
+            Ok("abc "),
+            Err(b"\x80"),
+            Ok(" def "),
+            Err(b"\xe0\xa0"),
+            Err(b"\xf0"),
+        ];
+        let output: Vec<UTF8Segment<'static>> = UTF8Segments(input).collect();
+        if output != expect {
+            eprintln!("Failed");
+            eprintln!("    Got:    {:?}", output);
+            eprintln!("    Expect: {:?}", expect);
+            return Err(TestFailure);
+        }
+        Ok(())
     }
 }
