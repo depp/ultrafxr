@@ -2,6 +2,7 @@ mod color;
 mod error;
 mod sexpr;
 mod sourcepos;
+mod sourceprint;
 mod sourcetext;
 mod token;
 mod utf8;
@@ -12,9 +13,11 @@ mod test;
 use color::{Style, StyleFlag};
 use error::ErrorHandler;
 use sexpr::{ParseResult, Parser};
-use sourcepos::{Pos, Span};
+use sourcepos::{HasPos, Pos, Span};
+use sourceprint::print_source;
 use sourcetext::SourceText;
 use std::fmt;
+use std::io::stdout;
 use std::process;
 use std::str::from_utf8;
 use token::{Token, Tokenizer, Type};
@@ -57,11 +60,22 @@ fn main() {
         }
     };
     let src_text = SourceText::new(TEXT);
-    println!("lookup(1): {:?}", src_text.lookup(Pos(1)));
+    println!("pos(1): {:?}", src_text.pos(Pos(1)));
     println!("line(0): {:?}", src_text.line(0));
+    let mut out = stdout();
     loop {
         let tok = toks.next();
         print_token(&tok);
+        match src_text.span(tok.source_pos()) {
+            Some(span) => match print_source(&mut out, &src_text, &span) {
+                Ok(_) => (),
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                    process::exit(1);
+                }
+            },
+            None => (),
+        }
         if tok.ty == Type::End {
             break;
         }

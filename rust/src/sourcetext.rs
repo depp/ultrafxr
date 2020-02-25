@@ -9,6 +9,15 @@ pub struct TextPos {
     pub byte: u32,
 }
 
+/// A decoded range within a source file.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TextSpan {
+    /// First character in range.
+    pub start: TextPos,
+    /// Character after last character in range.
+    pub end: TextPos,
+}
+
 // A decoder for source positions within a single source file.
 pub struct SourceText<'a> {
     text: &'a [u8],
@@ -48,7 +57,7 @@ impl<'a> SourceText<'a> {
     }
 
     // Convert a byte offset to a line number and character offset.
-    pub fn lookup(&self, pos: Pos) -> Option<TextPos> {
+    pub fn pos(&self, pos: Pos) -> Option<TextPos> {
         if pos < self.span.start || self.span.end < pos {
             return None;
         }
@@ -61,6 +70,20 @@ impl<'a> SourceText<'a> {
             Err(i) => TextPos {
                 line: (i - 1) as u32,
                 byte: offset - self.lines[i - 1],
+            },
+        })
+    }
+
+    /// Convert a byte range to a line number and character offset range.
+    pub fn span(&self, span: Span) -> Option<TextSpan> {
+        Some(TextSpan {
+            start: match self.pos(span.start) {
+                Some(pos) => pos,
+                None => return None,
+            },
+            end: match self.pos(span.end) {
+                Some(pos) => pos,
+                None => return None,
             },
         })
     }
@@ -100,7 +123,7 @@ mod test {
             let expect = Some(match expect {
                 (line, byte) => TextPos { line, byte },
             });
-            let result = text.lookup(Pos(n));
+            let result = text.pos(Pos(n));
             if result != expect {
                 success = false;
                 eprintln!("Lookup failed: input={:?}, pos={}", input, n);
@@ -109,7 +132,7 @@ mod test {
             }
         }
         for &offset in [0, input.len() as u32 + 2].iter() {
-            if let Some(result) = text.lookup(Pos(offset)) {
+            if let Some(result) = text.pos(Pos(offset)) {
                 success = false;
                 eprintln!("lookup({}): got {:?}, expect None", offset, result);
             }
