@@ -125,7 +125,7 @@ impl<'a> Tokenizer<'a> {
                 self.pos = pos;
                 return Token {
                     ty: End,
-                    pos: Pos(pos),
+                    pos: Pos(pos + self.start_pos),
                     text: &[],
                 };
             }
@@ -202,6 +202,10 @@ mod tests {
             && x.pos == y.pos
             && x.text.as_ptr() == y.text.as_ptr()
             && x.text.len() == y.text.len()
+    }
+
+    fn tok_eql(x: &Token, y: &Token) -> bool {
+        x.ty == y.ty && x.pos == y.pos && x.text == y.text
     }
 
     struct Tok<'a>(&'a Token<'a>);
@@ -284,5 +288,54 @@ mod tests {
             }
         }
         tests.done()
+    }
+
+    #[test]
+    fn test_doc() -> Result<(), TestFailure> {
+        use Type::*;
+        let input = b"(abc  +1.0\r\n+)";
+        let expect: &'static [Token<'static>] = &[
+            Token {
+                ty: ParenOpen,
+                pos: Pos(1),
+                text: b"(",
+            },
+            Token {
+                ty: Symbol,
+                pos: Pos(2),
+                text: b"abc",
+            },
+            Token {
+                ty: Number,
+                pos: Pos(7),
+                text: b"+1.0",
+            },
+            Token {
+                ty: Symbol,
+                pos: Pos(13),
+                text: b"+",
+            },
+            Token {
+                ty: ParenClose,
+                pos: Pos(14),
+                text: b")",
+            },
+            Token {
+                ty: End,
+                pos: Pos(15),
+                text: b"",
+            },
+        ];
+        let mut toks = Tokenizer::new(input).unwrap();
+        for (n, etok) in expect.iter().enumerate() {
+            let otok = toks.next();
+            if !tok_eql(&otok, &etok) {
+                eprintln!("Token {} does not match", n);
+                eprintln!("    Got:    {}", Tok(&otok));
+                eprintln!("    Expect: {}", Tok(&etok));
+                return Err(TestFailure);
+            }
+        }
+        Ok(())
     }
 }
