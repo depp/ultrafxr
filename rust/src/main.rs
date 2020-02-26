@@ -1,5 +1,6 @@
 mod color;
 mod error;
+mod parseargs;
 mod sexpr;
 mod sourcepos;
 mod sourceprint;
@@ -44,7 +45,39 @@ impl ErrorHandler for StderrLogger {
     }
 }
 
+fn parse_args() -> Result<(), parseargs::UsageError> {
+    use parseargs::{Arg, Args};
+    let mut args = Args::args();
+    loop {
+        args = match args.next() {
+            Arg::End => break,
+            Arg::Positional(value, rest) => {
+                println!("Positional: {:?}", value);
+                rest
+            }
+            Arg::Named(option) => match option.name() {
+                "flag" => {
+                    let rest = option.no_value()?;
+                    println!("Flag");
+                    rest
+                }
+                "option" => {
+                    let (value, rest) = option.value()?;
+                    println!("Option: {:?}", value);
+                    rest
+                }
+                _ => return Err(option.unknown()),
+            },
+        }
+    }
+    Ok(())
+}
+
 fn main() {
+    match parse_args() {
+        Ok(_) => (),
+        Err(e) => eprintln!("Error: {}", e),
+    }
     use StyleFlag::*;
     println!(
         "{}red {}green bold{}",
