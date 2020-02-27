@@ -15,7 +15,7 @@ mod utf8;
 mod test;
 
 use color::{Style, StyleFlag};
-use consolelogger::{write_diagnostic, write_diagnostic_str};
+use consolelogger::{write_diagnostic, write_diagnostic_str, ConsoleLogger};
 use error::ErrorHandler;
 use error::Severity;
 use sexpr::{ParseResult, Parser};
@@ -43,18 +43,10 @@ fn print_token(tok: &Token) {
     println!("{:4} {:?} {:?}", off, ty, dtext);
 }
 
-struct StderrLogger;
-
-impl ErrorHandler for StderrLogger {
-    fn handle(&mut self, _pos: Span, message: &str) {
-        let mut stderr = stderr();
-        write_diagnostic_str(&mut stderr, Severity::Error, message).unwrap();
-    }
-}
-
 fn main() {
     let mut stderr = stderr();
     let mut args = env::args_os();
+    // Discard program name.
     args.next();
     match cmd_sfx::Command::from_args(args) {
         Ok(c) => println!("cmd = {:?}", c),
@@ -70,7 +62,7 @@ fn main() {
     let mut toks = match Tokenizer::new(TEXT) {
         Ok(toks) => toks,
         Err(e) => {
-            eprintln!("Error: {}", e);
+            write_diagnostic(&mut stderr, Severity::Error, &e);
             process::exit(1);
         }
     };
@@ -97,7 +89,7 @@ fn main() {
     }
     toks.rewind();
     let mut parser = Parser::new();
-    let mut err_handler = StderrLogger {};
+    let mut err_handler = ConsoleLogger::from_text("<text>", TEXT);
     loop {
         match parser.parse(&mut err_handler, &mut toks) {
             ParseResult::None => break,
