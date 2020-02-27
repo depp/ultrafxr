@@ -17,7 +17,7 @@ use color::{Style, StyleFlag};
 use error::ErrorHandler;
 use sexpr::{ParseResult, Parser};
 use sourcepos::{HasPos, Pos, Span};
-use sourceprint::print_source;
+use sourceprint::write_source;
 use sourcetext::SourceText;
 use std::env;
 use std::fmt;
@@ -77,7 +77,7 @@ fn main() {
         let tok = toks.next();
         print_token(&tok);
         match src_text.span(tok.source_pos()) {
-            Some(span) => match print_source(&mut out, &src_text, &span) {
+            Some(span) => match write_source(&mut out, &src_text, &span) {
                 Ok(_) => (),
                 Err(e) => {
                     eprintln!("Error: {}", e);
