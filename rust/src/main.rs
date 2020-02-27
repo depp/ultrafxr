@@ -9,6 +9,7 @@ mod sourcepos;
 mod sourceprint;
 mod sourcetext;
 mod token;
+mod units;
 mod utf8;
 
 #[cfg(test)]
