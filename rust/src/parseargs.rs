@@ -5,6 +5,8 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub enum UsageError {
     InvalidArgument { arg: OsString },
+    UnexpectedArgument { arg: OsString },
+    MissingArgument { name: String },
     UnknownOption { option: String },
     OptionMissingParameter { option: String },
     OptionUnexpectedParameter { option: String },
@@ -16,6 +18,8 @@ impl fmt::Display for UsageError {
         use UsageError::*;
         match self {
             InvalidArgument { arg } => write!(f, "invalid argument {:?}", arg),
+            UnexpectedArgument { arg } => write!(f, "unexpected argument {:?}", arg),
+            MissingArgument { name } => write!(f, "missing argument <{}>", name),
             UnknownOption { option } => write!(f, "unknown option -{}", option),
             OptionMissingParameter { option } => write!(f, "option -{} requires parameter", option),
             OptionUnexpectedParameter { option } => write!(f, "unknown option {:?}", option),
@@ -75,9 +79,9 @@ pub struct Args {
 }
 
 impl Args {
-    pub fn args() -> Self {
+    pub fn from_args(args: env::ArgsOs) -> Self {
         Args {
-            args: env::args_os(),
+            args,
             allow_options: true,
         }
     }

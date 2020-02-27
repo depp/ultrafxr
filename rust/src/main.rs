@@ -1,3 +1,4 @@
+mod cmd_sfx;
 mod color;
 mod error;
 mod note;
@@ -18,6 +19,7 @@ use sexpr::{ParseResult, Parser};
 use sourcepos::{HasPos, Pos, Span};
 use sourceprint::print_source;
 use sourcetext::SourceText;
+use std::env;
 use std::fmt;
 use std::io::stdout;
 use std::process;
@@ -46,47 +48,11 @@ impl ErrorHandler for StderrLogger {
     }
 }
 
-fn parse_args() -> Result<(), parseargs::UsageError> {
-    use parseargs::{Arg, Args};
-    let mut args = Args::args();
-    loop {
-        args = match args.next()? {
-            Arg::End => break,
-            Arg::Positional(value, rest) => {
-                println!("Positional: {:?}", value);
-                rest
-            }
-            Arg::Named(option) => match option.name() {
-                "flag" => {
-                    let (_, rest) = option.no_value()?;
-                    println!("Flag");
-                    rest
-                }
-                "osstr" => {
-                    let (_, value, rest) = option.value_osstr()?;
-                    println!("OsStr: {:?}", value);
-                    rest
-                }
-                "str" => {
-                    let (_, value, rest) = option.value_str()?;
-                    println!("Str: {:?}", value);
-                    rest
-                }
-                "int" => {
-                    let (_, value, rest) = option.parse_str(|s| s.parse::<i32>().ok())?;
-                    println!("Int: {:?}", value);
-                    rest
-                }
-                _ => return Err(option.unknown()),
-            },
-        }
-    }
-    Ok(())
-}
-
 fn main() {
-    match parse_args() {
-        Ok(_) => (),
+    let mut args = env::args_os();
+    args.next();
+    match cmd_sfx::Command::from_args(args) {
+        Ok(c) => println!("cmd = {:?}", c),
         Err(e) => eprintln!("Error: {}", e),
     }
     use StyleFlag::*;
