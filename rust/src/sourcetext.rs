@@ -124,7 +124,7 @@ mod test {
 
     fn test_lookup(input: &[u8], outputs: &[(u32, u32)]) {
         assert_eq!(input.len() + 1, outputs.len());
-        let text = SourceText::new(input);
+        let text = SourceText::new("<test>", input);
         let mut success = true;
         for (n, &expect) in (1..).zip(outputs.iter()) {
             let expect = Some(match expect {
@@ -183,7 +183,7 @@ mod test {
 
     #[test]
     fn test_line() {
-        let text = SourceText::new(b"abc\ndef\rghi\r\njkl");
+        let text = SourceText::new("<test>", b"abc\ndef\rghi\r\njkl");
         let lines: &[&'static [u8]] = &[b"abc", b"def", b"ghi", b"jkl"];
         let mut success = true;
         for (n, &line) in lines.iter().enumerate() {
