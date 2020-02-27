@@ -1,5 +1,6 @@
 mod color;
 mod error;
+mod note;
 mod parseargs;
 mod sexpr;
 mod sourcepos;
