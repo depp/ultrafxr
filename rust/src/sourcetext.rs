@@ -20,6 +20,7 @@ pub struct TextSpan {
 
 // A decoder for source positions within a single source file.
 pub struct SourceText<'a> {
+    filename_str: &'a str,
     text: &'a [u8],
     lines: Vec<u32>, // Start offset of each line.
     span: Span,
@@ -27,7 +28,7 @@ pub struct SourceText<'a> {
 
 impl<'a> SourceText<'a> {
     // Create a new source location decoder for a file with the given contents.
-    pub fn new(text: &'a [u8]) -> Self {
+    pub fn new(filename: &'a str, text: &'a [u8]) -> Self {
         let mut prev = b'\0';
         let mut lines = Vec::<u32>::new();
         lines.push(0);
@@ -47,6 +48,7 @@ impl<'a> SourceText<'a> {
             prev = c;
         }
         SourceText {
+            filename_str: filename,
             text,
             lines,
             span: Span {
@@ -54,6 +56,11 @@ impl<'a> SourceText<'a> {
                 end: Pos(text.len() as u32 + 1),
             },
         }
+    }
+
+    /// Get the filename.
+    pub fn filename(&self) -> &str {
+        self.filename_str
     }
 
     // Convert a byte offset to a line number and character offset.

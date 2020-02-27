@@ -113,7 +113,19 @@ fn digit_length(n: usize) -> usize {
 /// appropriately formatted and made visible.
 pub fn write_source(w: &mut impl Write, text: &SourceText<'_>, span: &TextSpan) -> io::Result<()> {
     let lineno_len = digit_length((max(span.start.line, span.end.line) + 1) as usize);
+    fill(w, lineno_len, &SPACES)?;
+    writeln!(
+        w,
+        "{}-->{} {}:{}:{}",
+        color::LINENO,
+        color::RESET,
+        text.filename(),
+        span.start.line + 1,
+        span.start.byte
+    )?;
     for lineno in span.start.line..=span.end.line {
+        fill(w, lineno_len + 1, &SPACES)?;
+        writeln!(w, "{}|{}", color::LINENO, color::RESET)?;
         write!(w, "{}{} |{} ", color::LINENO, lineno + 1, color::RESET)?;
         let line = text.line(lineno);
         let startbyte = if lineno == span.start.line {

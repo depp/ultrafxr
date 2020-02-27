@@ -69,7 +69,7 @@ fn main() {
             process::exit(1);
         }
     };
-    let src_text = SourceText::new(TEXT);
+    let src_text = SourceText::new("<text>", TEXT);
     println!("pos(1): {:?}", src_text.pos(Pos(1)));
     println!("line(0): {:?}", src_text.line(0));
     let mut out = stdout();
