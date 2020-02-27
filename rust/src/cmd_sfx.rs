@@ -1,7 +1,13 @@
+use crate::consolelogger::ConsoleLogger;
 use crate::note::Note;
 use crate::parseargs::{Arg, Args, UsageError};
+use crate::sexpr::{ParseResult, Parser};
+use crate::token::Tokenizer;
 use std::env;
+use std::error::Error;
 use std::ffi::OsString;
+use std::fs::File;
+use std::io::Read;
 
 #[derive(Debug, Clone)]
 pub struct Command {
@@ -105,5 +111,33 @@ impl Command {
             do_loop,
             verbose,
         })
+    }
+
+    pub fn run(&self) -> Result<(), Box<dyn Error>> {
+        let mut text = Vec::new();
+        let mut file = File::open(&self.input)?;
+        let filename = match self.input.to_str() {
+            Some(s) => s.to_string(),
+            None => format!("{:?}", self.input),
+        };
+        file.read_to_end(&mut text)?;
+        drop(file);
+        let mut toks = Tokenizer::new(text.as_ref())?;
+        let mut parser = Parser::new();
+        let mut err_handler = ConsoleLogger::from_text(filename.as_ref(), text.as_ref());
+        loop {
+            match parser.parse(&mut err_handler, &mut toks) {
+                ParseResult::None => break,
+                ParseResult::Incomplete => {
+                    parser.finish(&mut err_handler);
+                    break;
+                }
+                ParseResult::Error => break,
+                ParseResult::Value(expr) => {
+                    println!("Expr: {:?}", expr);
+                }
+            }
+        }
+        Ok(())
     }
 }
