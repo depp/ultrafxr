@@ -49,7 +49,7 @@ fn parse_args() -> Result<(), parseargs::UsageError> {
     use parseargs::{Arg, Args};
     let mut args = Args::args();
     loop {
-        args = match args.next() {
+        args = match args.next()? {
             Arg::End => break,
             Arg::Positional(value, rest) => {
                 println!("Positional: {:?}", value);
@@ -57,13 +57,23 @@ fn parse_args() -> Result<(), parseargs::UsageError> {
             }
             Arg::Named(option) => match option.name() {
                 "flag" => {
-                    let rest = option.no_value()?;
+                    let (_, rest) = option.no_value()?;
                     println!("Flag");
                     rest
                 }
-                "option" => {
-                    let (value, rest) = option.value()?;
-                    println!("Option: {:?}", value);
+                "osstr" => {
+                    let (_, value, rest) = option.value_osstr()?;
+                    println!("OsStr: {:?}", value);
+                    rest
+                }
+                "str" => {
+                    let (_, value, rest) = option.value_str()?;
+                    println!("Str: {:?}", value);
+                    rest
+                }
+                "int" => {
+                    let (_, value, rest) = option.parse_str(|s| s.parse::<i32>().ok())?;
+                    println!("Int: {:?}", value);
                     rest
                 }
                 _ => return Err(option.unknown()),
