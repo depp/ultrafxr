@@ -222,7 +222,7 @@ mod tests {
     }
 
     #[test]
-    fn test_simple_tokens() -> Result<(), TestFailure> {
+    fn simple_tokens() -> Result<(), TestFailure> {
         use Type::*;
         let cases: &[(&'static [u8], Type)] = &[
             (b";comment\n", Comment),
@@ -291,7 +291,7 @@ mod tests {
     }
 
     #[test]
-    fn test_doc() -> Result<(), TestFailure> {
+    fn doc() -> Result<(), TestFailure> {
         use Type::*;
         let input = b"(abc  +1.0\r\n+)";
         let expect: &'static [Token<'static>] = &[

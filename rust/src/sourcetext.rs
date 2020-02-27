@@ -148,7 +148,7 @@ mod test {
     }
 
     #[test]
-    fn test_lookup_simple() {
+    fn lookup_simple() {
         test_lookup(
             b"ab\ncd\n",
             &[(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (2, 0)],
@@ -156,7 +156,7 @@ mod test {
     }
 
     #[test]
-    fn test_lookup_no_linebreak_at_end() {
+    fn lookup_no_linebreak_at_end() {
         test_lookup(
             b"abc\n\nd",
             &[(0, 0), (0, 1), (0, 2), (0, 3), (1, 0), (2, 0), (2, 1)],
@@ -164,12 +164,12 @@ mod test {
     }
 
     #[test]
-    fn test_lookup_empty() {
+    fn lookup_empty() {
         test_lookup(&[], &[(0, 0)]);
     }
 
     #[test]
-    fn test_lookup_crlf() {
+    fn lookup_crlf() {
         test_lookup(
             b"a\r\nb\r\n",
             &[(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (2, 0)],
@@ -177,12 +177,12 @@ mod test {
     }
 
     #[test]
-    fn test_lookup_cr() {
+    fn lookup_cr() {
         test_lookup(b"a\rb\r", &[(0, 0), (0, 1), (1, 0), (1, 1), (2, 0)]);
     }
 
     #[test]
-    fn test_line() {
+    fn line() {
         let text = SourceText::new("<test>", b"abc\ndef\rghi\r\njkl");
         let lines: &[&'static [u8]] = &[b"abc", b"def", b"ghi", b"jkl"];
         let mut success = true;

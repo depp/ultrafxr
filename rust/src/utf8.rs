@@ -74,7 +74,7 @@ mod test {
     use crate::test::*;
 
     #[test]
-    fn test_parse_character_success() -> Result<(), TestFailure> {
+    fn parse_character_success() -> Result<(), TestFailure> {
         let cases: &'static [char] = &[
             '\0',
             'a',
@@ -104,7 +104,7 @@ mod test {
     }
 
     #[test]
-    fn test_parse_character_error() -> Result<(), TestFailure> {
+    fn parse_character_error() -> Result<(), TestFailure> {
         let cases: &'static [(&'static [u8], usize)] = &[
             // End of file.
             (b"", 0),
@@ -187,7 +187,7 @@ mod test {
     }
 
     #[test]
-    fn test_segments() -> Result<(), TestFailure> {
+    fn segments() -> Result<(), TestFailure> {
         let input: &'static [u8] = b"abc \x80 def \xe0\xa0\xf0";
         let expect: &'static [UTF8Segment<'static>] = &[
             Ok("abc "),
