@@ -1,5 +1,6 @@
 mod cmd_sfx;
 mod color;
+mod consolelogger;
 mod error;
 mod note;
 mod parseargs;
@@ -14,14 +15,16 @@ mod utf8;
 mod test;
 
 use color::{Style, StyleFlag};
+use consolelogger::{write_diagnostic, write_diagnostic_str};
 use error::ErrorHandler;
+use error::Severity;
 use sexpr::{ParseResult, Parser};
 use sourcepos::{HasPos, Pos, Span};
 use sourceprint::write_source;
 use sourcetext::SourceText;
 use std::env;
 use std::fmt;
-use std::io::stdout;
+use std::io::{stderr, stdout};
 use std::process;
 use std::str::from_utf8;
 use token::{Token, Tokenizer, Type};
@@ -44,16 +47,18 @@ struct StderrLogger;
 
 impl ErrorHandler for StderrLogger {
     fn handle(&mut self, _pos: Span, message: &str) {
-        eprintln!("Error: {}", message);
+        let mut stderr = stderr();
+        write_diagnostic_str(&mut stderr, Severity::Error, message).unwrap();
     }
 }
 
 fn main() {
+    let mut stderr = stderr();
     let mut args = env::args_os();
     args.next();
     match cmd_sfx::Command::from_args(args) {
         Ok(c) => println!("cmd = {:?}", c),
-        Err(e) => eprintln!("Error: {}", e),
+        Err(e) => write_diagnostic(&mut stderr, Severity::Error, &e).unwrap(),
     }
     use StyleFlag::*;
     println!(
@@ -80,7 +85,7 @@ fn main() {
             Some(span) => match write_source(&mut out, &src_text, &span) {
                 Ok(_) => (),
                 Err(e) => {
-                    eprintln!("Error: {}", e);
+                    write_diagnostic(&mut stderr, Severity::Error, &e).unwrap();
                     process::exit(1);
                 }
             },
