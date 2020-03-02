@@ -3,15 +3,19 @@ mod color;
 mod consolelogger;
 mod error;
 mod note;
-mod parseargs;
 mod parser;
 mod sexpr;
 mod sourcepos;
 mod sourceprint;
 mod sourcetext;
 mod token;
-mod units;
 mod utf8;
+
+#[allow(dead_code)]
+mod parseargs;
+
+#[allow(dead_code)]
+mod units;
 
 #[cfg(test)]
 mod test;

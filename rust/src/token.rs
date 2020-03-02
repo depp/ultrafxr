@@ -108,6 +108,7 @@ impl<'a> Tokenizer<'a> {
     }
 
     /// Rewind tokenizer to start of stream.
+    #[allow(dead_code)]
     pub fn rewind(&mut self) -> () {
         self.pos = 0;
     }
