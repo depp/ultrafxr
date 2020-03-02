@@ -134,7 +134,7 @@ impl Command {
                 }
                 ParseResult::Error => break,
                 ParseResult::Value(expr) => {
-                    println!("Expr: {:?}", expr);
+                    println!("Expr: {}", expr.print());
                 }
             }
         }
