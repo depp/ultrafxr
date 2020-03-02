@@ -4,6 +4,7 @@ mod consolelogger;
 mod error;
 mod note;
 mod parseargs;
+mod parser;
 mod sexpr;
 mod sourcepos;
 mod sourceprint;

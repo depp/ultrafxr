@@ -1,7 +1,7 @@
 use crate::consolelogger::ConsoleLogger;
 use crate::note::Note;
 use crate::parseargs::{Arg, Args, UsageError};
-use crate::sexpr::{ParseResult, Parser};
+use crate::parser::{ParseResult, Parser};
 use crate::token::Tokenizer;
 use std::env;
 use std::error::Error;
