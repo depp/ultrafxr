@@ -3,9 +3,9 @@ use crate::sexpr::{Content, SExpr};
 use crate::sourcepos::{HasPos, Span};
 use crate::token::{Token, Tokenizer, Type};
 use std::fmt::Write;
-use std::str::from_utf8;
-use std::vec::Vec;
+use std::str;
 
+/// An incremental s-expression parser.
 pub struct Parser {
     exprs: Vec<SExpr>,
     groups: Vec<(Span, usize)>,
@@ -13,7 +13,7 @@ pub struct Parser {
 
 // Convert a token to an owned string.
 fn tok_str(tok: &Token) -> Box<str> {
-    match from_utf8(tok.text) {
+    match str::from_utf8(tok.text) {
         Ok(s) => Box::from(s),
         // The tokenizer is supposed to check that the non-error tokens are
         // valid UTF-8, but this is not guaranteed by the type system.
@@ -21,7 +21,7 @@ fn tok_str(tok: &Token) -> Box<str> {
     }
 }
 
-// A result from running the parser.
+/// A result from running the parser.
 pub enum ParseResult {
     None,         // Token stream ended without any expressions in it.
     Incomplete,   // Token stream ended in middle of expression.
@@ -31,7 +31,7 @@ pub enum ParseResult {
 
 // Send an error message
 fn handle_error_token(err_handler: &mut dyn ErrorHandler, pos: Span, text: &[u8]) {
-    let msg: String = match from_utf8(text) {
+    let msg: String = match str::from_utf8(text) {
         Ok(s) => match s.chars().next() {
             Some(c) => {
                 if c <= '\x1f' || ('\u{7f}' <= c && c <= '\u{9f}') {
@@ -72,7 +72,10 @@ impl Parser {
         };
     }
 
-    // Parse the next s-expression from the token stream.
+    /// Parse the next s-expression from the token stream.
+    ///
+    /// If the stream ends without producing a complete s-expression, parse()
+    /// can be called again to continue parsing incrementally.
     pub fn parse(
         &mut self,
         err_handler: &mut dyn ErrorHandler,
@@ -141,7 +144,7 @@ impl Parser {
         }
     }
 
-    // Finish parsing a document, and report errors for any unclosed groups.
+    /// Finish parsing a document, and report errors for any unclosed groups.
     pub fn finish(&self, err_handler: &mut dyn ErrorHandler) {
         for (pos, _) in self.groups.iter().rev() {
             err_handler.handle(*pos, "missing ')'");

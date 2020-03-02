@@ -1,5 +1,6 @@
 use crate::sourcepos::{HasPos, Span};
 
+/// The contents of an s-expression.
 #[derive(Debug)]
 pub enum Content {
     Symbol(Box<str>),
@@ -7,6 +8,7 @@ pub enum Content {
     List(Box<[SExpr]>),
 }
 
+/// An s-expression.
 #[derive(Debug)]
 pub struct SExpr {
     pub pos: Span,
