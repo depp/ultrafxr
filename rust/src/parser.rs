@@ -1,7 +1,9 @@
 use crate::error::ErrorHandler;
+use crate::number::ParsedNumber;
 use crate::sexpr::{Content, SExpr};
 use crate::sourcepos::{HasPos, Span};
 use crate::token::{Token, Tokenizer, Type};
+use crate::units::Units;
 use std::fmt::Write;
 use std::str;
 
@@ -9,10 +11,22 @@ use std::str;
 pub struct Parser {
     exprs: Vec<SExpr>,
     groups: Vec<(Span, usize)>,
+    number: ParsedNumber,
+}
+
+/// Get the contents of a token as a string.
+///
+/// This will panic if called on invalid UTF-8, which should only be true for
+/// some Error tokens.
+fn tok_str<'a>(tok: &Token<'a>) -> &'a str {
+    match str::from_utf8(tok.text) {
+        Ok(s) => s,
+        Err(_) => panic!("invalid token from tokenizer"),
+    }
 }
 
 // Convert a token to an owned string.
-fn tok_str(tok: &Token) -> Box<str> {
+fn tok_boxstr(tok: &Token) -> Box<str> {
     match str::from_utf8(tok.text) {
         Ok(s) => Box::from(s),
         // The tokenizer is supposed to check that the non-error tokens are
@@ -69,6 +83,7 @@ impl Parser {
         return Parser {
             exprs: Vec::new(),
             groups: Vec::new(),
+            number: ParsedNumber::new(),
         };
     }
 
@@ -100,7 +115,7 @@ impl Parser {
                 Type::Symbol => {
                     let expr = SExpr {
                         pos,
-                        content: Content::Symbol(tok_str(&tok)),
+                        content: Content::Symbol(tok_boxstr(&tok)),
                     };
                     if self.groups.is_empty() {
                         return ParseResult::Value(expr);
@@ -108,10 +123,11 @@ impl Parser {
                     self.exprs.push(expr);
                 }
                 Type::Number => {
-                    let expr = SExpr {
-                        pos,
-                        content: Content::Number(tok_str(&tok)),
+                    let content = match self.parse_number(err_handler, &tok) {
+                        Some(x) => x,
+                        None => return ParseResult::Error,
                     };
+                    let expr = SExpr { pos, content };
                     if self.groups.is_empty() {
                         return ParseResult::Value(expr);
                     }
@@ -150,5 +166,36 @@ impl Parser {
             err_handler.handle(*pos, "missing ')'");
             return;
         }
+    }
+
+    /// Parse a numeric token.
+    fn parse_number(&mut self, err_handler: &mut dyn ErrorHandler, tok: &Token) -> Option<Content> {
+        let tokpos = tok.source_pos();
+        let text = tok_str(tok);
+        let rest = match self.number.parse(text, tokpos) {
+            Ok(rest) => rest,
+            Err((e, pos)) => {
+                err_handler.handle(pos, e.to_string().as_ref());
+                return None;
+            }
+        };
+        let idx = text.len() - rest.len();
+        let (_upos, units, exponent) = match Units::parse(rest, tokpos.sub_span(idx..)) {
+            Ok(r) => r,
+            Err((e, pos)) => {
+                err_handler.handle(pos, e.to_string().as_ref());
+                return None;
+            }
+        };
+        if exponent != 0 {
+            self.number.exponent = Some(self.number.exponent.unwrap_or(0).saturating_add(exponent));
+        }
+        self.number.trim();
+        let num = Box::from(self.number.to_string());
+        Some(if units == Default::default() {
+            Content::Number(num)
+        } else {
+            Content::Units(units, num)
+        })
     }
 }

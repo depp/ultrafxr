@@ -1,10 +1,12 @@
 use crate::sourcepos::{HasPos, Span};
+use crate::units::Units;
 
 /// The contents of an s-expression.
 #[derive(Debug)]
 pub enum Content {
     Symbol(Box<str>),
     Number(Box<str>),
+    Units(Units, Box<str>),
     List(Box<[SExpr]>),
 }
 
@@ -34,6 +36,13 @@ impl SExpr {
         match &self.content {
             Symbol(sym) => out.push_str(sym),
             Number(num) => out.push_str(num),
+            Units(u, num) => {
+                out.push('[');
+                out.push_str(u.to_string().as_ref());
+                out.push(' ');
+                out.push_str(num);
+                out.push(']');
+            }
             List(list) => {
                 out.push('(');
                 let mut iter = list.iter();

@@ -3,6 +3,7 @@ mod color;
 mod consolelogger;
 mod error;
 mod note;
+mod number;
 mod parser;
 mod sexpr;
 mod sourcepos;
