@@ -232,6 +232,7 @@ mod test {
             ("dB", Units::decibel(1), 0, 0, 2),
             ("mV", Units::volt(1), -3, 1, 2),
             ("kHz", Units::hertz(1), 3, 1, 3),
+            ("\u{03BC}s", Units::second(1), -6, 2, 3),
         ];
         for (n, &(input, units, exponent, start, end)) in cases.iter().enumerate() {
             let offset: u32 = (1 + n as u32) * 100;
