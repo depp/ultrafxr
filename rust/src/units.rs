@@ -23,7 +23,25 @@ pub struct Units {
     pub decibel: i8,
 }
 
+macro_rules! def_units {
+    ($($id:ident),*) => {
+        $(
+            fn $id(n: i8) -> Self {
+                let mut u: Units = Default::default();
+                u.$id = n;
+                u
+            }
+        )*
+    };
+}
+
 impl Units {
+    def_units!(volt, second, radian, decibel);
+
+    fn hertz(n: i8) -> Self {
+        Units::second(-n)
+    }
+
     /// True if this is a dimensionless scalar value, i.e., a scalar.
     pub fn dimensionless(&self) -> bool {
         *self == Default::default()
@@ -90,46 +108,10 @@ mod test {
     #[test]
     fn display() {
         assert_eq!(Units::default().to_string(), "1");
-        assert_eq!(
-            Units {
-                volt: 1,
-                second: 0,
-                radian: 0,
-                decibel: 0,
-            }
-            .to_string(),
-            "V"
-        );
-        assert_eq!(
-            Units {
-                volt: 0,
-                second: 1,
-                radian: 0,
-                decibel: 0,
-            }
-            .to_string(),
-            "s"
-        );
-        assert_eq!(
-            Units {
-                volt: 0,
-                second: 0,
-                radian: 1,
-                decibel: 0,
-            }
-            .to_string(),
-            "rad"
-        );
-        assert_eq!(
-            Units {
-                volt: 0,
-                second: 0,
-                radian: 0,
-                decibel: 1,
-            }
-            .to_string(),
-            "dB"
-        );
+        assert_eq!(Units::volt(1).to_string(), "V");
+        assert_eq!(Units::second(1).to_string(), "s");
+        assert_eq!(Units::radian(1).to_string(), "rad");
+        assert_eq!(Units::decibel(1).to_string(), "dB");
         assert_eq!(
             Units {
                 volt: 2,
