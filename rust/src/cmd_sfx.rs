@@ -114,29 +114,36 @@ impl Command {
     }
 
     pub fn run(&self) -> Result<(), Box<dyn Error>> {
-        let mut text = Vec::new();
-        let mut file = File::open(&self.input)?;
         let filename = match self.input.to_str() {
             Some(s) => s.to_string(),
             None => format!("{:?}", self.input),
         };
-        file.read_to_end(&mut text)?;
-        drop(file);
-        let mut toks = Tokenizer::new(text.as_ref())?;
-        let mut parser = Parser::new();
+        let text = {
+            let mut text = Vec::new();
+            let mut file = File::open(&self.input)?;
+            file.read_to_end(&mut text)?;
+            text
+        };
         let mut err_handler = ConsoleLogger::from_text(filename.as_ref(), text.as_ref());
-        loop {
-            match parser.parse(&mut err_handler, &mut toks) {
-                ParseResult::None => break,
-                ParseResult::Incomplete => {
-                    parser.finish(&mut err_handler);
-                    break;
-                }
-                ParseResult::Error => break,
-                ParseResult::Value(expr) => {
-                    println!("Expr: {}", expr.print());
+        let exprs = {
+            let mut exprs = Vec::new();
+            let mut toks = Tokenizer::new(text.as_ref())?;
+            let mut parser = Parser::new();
+            loop {
+                match parser.parse(&mut err_handler, &mut toks) {
+                    ParseResult::None => break,
+                    ParseResult::Incomplete => {
+                        parser.finish(&mut err_handler);
+                        break;
+                    }
+                    ParseResult::Error => break,
+                    ParseResult::Value(expr) => exprs.push(expr),
                 }
             }
+            exprs
+        };
+        for expr in exprs.iter() {
+            println!("Expr: {}", expr.print());
         }
         Ok(())
     }
