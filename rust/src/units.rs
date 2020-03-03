@@ -1,5 +1,7 @@
+use crate::sourcepos::Span;
 use std::fmt;
 
+/// An error from an operation on units.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum UnitError {
     Overflow,
@@ -14,20 +16,32 @@ impl fmt::Display for UnitError {
     }
 }
 
-/// Parse a metric prefix from the beginning of a string.
-///
-/// Returns the prefix's power of 10 and the remainder of the string after the
-/// prefix. This function only parses prefixes for powers of 1000. The hecto
-/// (h), deca (da), deci (d), and centi (c) prefixes are not recognized.
-fn parse_prefix(text: &str) -> Option<(i32, &str)> {
-    let mut chars = text.chars();
-    let c = match chars.next() {
-        None => return None,
-        Some(c) => c,
-    };
+/// An error from parsing units.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ParseError {
+    UnknownPrefix,
+    UnknownUnits,
+    PrefixNotAllowed,
+}
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use ParseError::*;
+        f.write_str(match *self {
+            UnknownPrefix => "unknown prefix",
+            UnknownUnits => "unknown units",
+            PrefixNotAllowed => "metric prefix not allowed with units",
+        })
+    }
+}
+
+/// Parse a metric prefix. Returns the prefix's power of 10. Only powers of 1000
+/// are recognized; so hecto (h), deca (da), deci (d), and centi (c) are
+/// ignored.
+fn parse_prefix(c: char) -> Option<i32> {
     // U+00B5: Micro Sign
     // U+03BC: Greek Small Letter Mu
-    let exponent: i32 = match c {
+    Some(match c {
         'y' => -24,
         'z' => -21,
         'a' => -18,
@@ -45,8 +59,7 @@ fn parse_prefix(text: &str) -> Option<(i32, &str)> {
         'Z' => 21,
         'Y' => 24,
         _ => return None,
-    };
-    Some((exponent, chars.as_str()))
+    })
 }
 
 /// Units associated with a quantity.
@@ -104,19 +117,33 @@ impl Units {
     ///
     /// Returns the units and the exponent for the metric prefix used. For
     /// example, "ms" will parse as (second, -3), "kV" will parse as (volt, +3).
-    pub fn parse(text: &str) -> Option<(Self, i32)> {
-        if text.is_empty() {
-            return Some(Default::default());
-        }
-        if let Some((exponent, rest)) = parse_prefix(text) {
-            if let Some((true, units)) = Units::parse_without_prefix(rest) {
-                return Some((units, exponent));
+    pub fn parse(text: &str, pos: Span) -> Result<(Span, Self, i32), (ParseError, Span)> {
+        use ParseError::*;
+        let mut chars = text.chars();
+        let c = match chars.next() {
+            None => return Ok((pos, Default::default(), 0)),
+            Some(c) => c,
+        };
+        let exponent = parse_prefix(c);
+        let rest = chars.as_str();
+        let split_idx = text.len() - rest.len();
+        if let Some((allow_prefix, units)) = Units::parse_without_prefix(rest) {
+            let exponent = match exponent {
+                Some(x) => x,
+                None => return Err((UnknownPrefix, pos.sub_span(..split_idx))),
+            };
+            if !allow_prefix {
+                return Err((PrefixNotAllowed, pos));
             }
+            return Ok((pos.sub_span(split_idx..), units, exponent));
         }
-        if let Some((_, units)) = Units::parse_without_prefix(text) {
-            return Some((units, 0));
+        if exponent.is_some() && !rest.is_empty() {
+            return Err((UnknownUnits, pos.sub_span(split_idx..)));
         }
-        None
+        match Units::parse_without_prefix(text) {
+            Some((_, units)) => Ok((pos, units, 0)),
+            None => Err((UnknownUnits, pos)),
+        }
     }
 
     /// Parse units without metric prefix.
@@ -171,7 +198,8 @@ impl fmt::Display for Units {
 
 #[cfg(test)]
 mod test {
-    use super::Units;
+    use super::*;
+    use crate::sourcepos::{Pos, Span};
 
     #[test]
     fn display() {
@@ -195,19 +223,28 @@ mod test {
     #[test]
     fn parse() {
         let mut success = true;
-        let cases: &[(&'static str, Units, i32)] = &[
-            ("", Default::default(), 0),
-            ("V", Units::volt(1), 0),
-            ("s", Units::second(1), 0),
-            ("Hz", Units::hertz(1), 0),
-            ("rad", Units::radian(1), 0),
-            ("dB", Units::decibel(1), 0),
-            ("mV", Units::volt(1), -3),
-            ("kHz", Units::hertz(1), 3),
+        let cases: &[(&'static str, Units, i32, u32, u32)] = &[
+            ("", Default::default(), 0, 0, 0),
+            ("V", Units::volt(1), 0, 0, 1),
+            ("s", Units::second(1), 0, 0, 1),
+            ("Hz", Units::hertz(1), 0, 0, 2),
+            ("rad", Units::radian(1), 0, 0, 3),
+            ("dB", Units::decibel(1), 0, 0, 2),
+            ("mV", Units::volt(1), -3, 1, 2),
+            ("kHz", Units::hertz(1), 3, 1, 3),
         ];
-        for (n, &(input, units, exponent)) in cases.iter().enumerate() {
-            let out = Units::parse(input);
-            let expect = Some((units, exponent));
+        for (n, &(input, units, exponent, start, end)) in cases.iter().enumerate() {
+            let offset: u32 = (1 + n as u32) * 100;
+            let in_pos = Span {
+                start: Pos(offset),
+                end: Pos(offset + input.len() as u32),
+            };
+            let out = Units::parse(input, in_pos);
+            let expect_pos = Span {
+                start: Pos(offset + start),
+                end: Pos(offset + end),
+            };
+            let expect = Ok((expect_pos, units, exponent));
             if out != expect {
                 success = false;
                 eprintln!("Test {} failed:", n);
@@ -225,22 +262,33 @@ mod test {
     #[test]
     fn parse_fail() {
         let mut success = true;
-        const CASES: &'static [&'static str] = &[
-            "v",   // Wrong case, should be V.
-            "mdB", // Prefix not permitted, dB already has prefix.
-            "kv",  // Wrong case, should be kV.
-            "k",   // No units.
-            "qV",  // Invalid prefix.
-            "mS",  // Unknown units.
+        use ParseError::*;
+        const CASES: &'static [(&'static str, ParseError, u32, u32)] = &[
+            ("v", UnknownUnits, 0, 1),       // Wrong case, should be V.
+            ("mdB", PrefixNotAllowed, 0, 3), // Prefix not permitted, dB already has prefix.
+            ("kv", UnknownUnits, 1, 2),      // Wrong case, should be kV.
+            ("k", UnknownUnits, 0, 1),       // No units.
+            ("qV", UnknownPrefix, 0, 1),     // Invalid prefix.
+            ("mS", UnknownUnits, 1, 2),      // Unknown units.
         ];
-        for (n, &input) in CASES.iter().enumerate() {
-            let out = Units::parse(input);
-            if out.is_some() {
+        for (n, &(input, err, start, end)) in CASES.iter().enumerate() {
+            let offset: u32 = (1 + n as u32) * 100;
+            let in_pos = Span {
+                start: Pos(offset),
+                end: Pos(offset + input.len() as u32),
+            };
+            let out = Units::parse(input, in_pos);
+            let expect_pos = Span {
+                start: Pos(offset + start),
+                end: Pos(offset + end),
+            };
+            let expect = Err((err, expect_pos));
+            if out != expect {
                 success = false;
                 eprintln!("Test {} failed:", n);
                 eprintln!("    Input: {:?}", input);
                 eprintln!("    Output:   {:?}", out);
-                eprintln!("    Expected: None");
+                eprintln!("    Expected: {:?}", expect);
             }
         }
         if !success {
