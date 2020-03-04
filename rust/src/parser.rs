@@ -191,11 +191,17 @@ impl Parser {
             self.number.exponent = Some(self.number.exponent.unwrap_or(0).saturating_add(exponent));
         }
         self.number.trim();
-        let num = Box::from(self.number.to_string());
-        Some(if units == Default::default() {
-            Content::Number(num)
+        Some(if self.number.exponent.is_some() {
+            Content::Float(units, self.number.float())
         } else {
-            Content::Units(units, num)
+            let x = match self.number.integer() {
+                Ok(x) => x,
+                Err(e) => {
+                    err_handler.handle(tokpos.sub_span(..idx), e.to_string().as_ref());
+                    return None;
+                }
+            };
+            Content::Integer(units, x)
         })
     }
 }

@@ -1,12 +1,13 @@
 use crate::sourcepos::{HasPos, Span};
 use crate::units::Units;
+use std::fmt::Write;
 
 /// The contents of an s-expression.
 #[derive(Debug)]
 pub enum Content {
     Symbol(Box<str>),
-    Number(Box<str>),
-    Units(Units, Box<str>),
+    Integer(Units, i64),
+    Float(Units, f64),
     List(Box<[SExpr]>),
 }
 
@@ -35,13 +36,19 @@ impl SExpr {
         use Content::*;
         match &self.content {
             Symbol(sym) => out.push_str(sym),
-            Number(num) => out.push_str(num),
-            Units(u, num) => {
-                out.push('[');
-                out.push_str(u.to_string().as_ref());
-                out.push(' ');
-                out.push_str(num);
-                out.push(']');
+            Integer(units, num) => {
+                if units.is_scalar() {
+                    write!(out, "{}", num).unwrap();
+                } else {
+                    write!(out, "[{} {}]", units, num).unwrap();
+                }
+            }
+            Float(units, num) => {
+                if units.is_scalar() {
+                    write!(out, "{}", num).unwrap();
+                } else {
+                    write!(out, "[{} {}]", units, num).unwrap();
+                }
             }
             List(list) => {
                 out.push('(');
