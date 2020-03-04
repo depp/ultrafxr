@@ -167,25 +167,25 @@ impl<'a> Env<'a> {
         match &expr.content {
             &Content::Symbol(ref name) => match self.variables.get(name.as_ref()) {
                 Some(value) => *value,
-                None => error!(self, &pos, "undefined symbol: {:?}", name),
+                None => error!(self, pos, "undefined symbol: {:?}", name),
             },
             &Content::Integer(units, num) => Ok(Value(Data::Int(num), units)),
             &Content::Float(units, num) => Ok(Value(Data::Float(num), units)),
             &Content::List(ref items) => {
                 let (op, args) = match items.split_first() {
                     Some(x) => x,
-                    None => return error!(self, &pos, "cannot evaluate empty list"),
+                    None => return error!(self, pos, "cannot evaluate empty list"),
                 };
                 let op = {
                     let pos = op.source_pos();
                     let name: &str = match &op.content {
                         &Content::Symbol(ref name) => name.as_ref(),
-                        _ => return error!(self, &pos, "function or macro name must be a symbol"),
+                        _ => return error!(self, pos, "function or macro name must be a symbol"),
                     };
                     match self.operators.get(name) {
                         Some(x) => *x,
                         None => {
-                            return error!(self, &pos, "undefined function or macro: {:?}", name)
+                            return error!(self, pos, "undefined function or macro: {:?}", name)
                         }
                     }
                 };
@@ -210,11 +210,7 @@ impl<'a> Env<'a> {
         }
     }
 
-    fn error(&mut self, pos: &impl HasPos, msg: &str) {
-        self.error_impl(pos.source_pos(), msg);
-    }
-
-    fn error_impl(&mut self, pos: Span, msg: &str) {
+    fn error(&mut self, pos: Span, msg: &str) {
         self.has_error = true;
         self.err_handler.handle(pos, msg);
     }
@@ -224,7 +220,7 @@ impl<'a> Env<'a> {
         match value {
             Ok(value) => Ok(value),
             Err(Error::Failed) => Err(Failed),
-            Err(e) => error!(self, &pos, "invalid value for {}: {}", name, e),
+            Err(e) => error!(self, pos, "invalid value for {}: {}", name, e),
         }
     }
 }
@@ -286,7 +282,7 @@ pub fn evaluate_program(err_handler: &mut dyn ErrorHandler, program: &[SExpr]) -
     for form in first.iter() {
         match get_void(env.evaluate(form)) {
             Err(e) if !e.is_failed() => {
-                env.error_impl(
+                env.error(
                     form.source_pos(),
                     format!("bad top-level statement: {}", e).as_ref(),
                 );
@@ -297,7 +293,7 @@ pub fn evaluate_program(err_handler: &mut dyn ErrorHandler, program: &[SExpr]) -
     let _node: Node = match get_node(Units::volt(1), env.evaluate(last)) {
         Err(e) => {
             if !e.is_failed() {
-                env.error_impl(
+                env.error(
                     last.source_pos(),
                     format!("bad program output: {}", e).as_ref(),
                 );
@@ -381,7 +377,7 @@ mod ops {
     macro_rules! unimplemented {
         ($id:ident) => {
             fn $id<'a>(env: &mut Env<'a>, pos: Span, _args: &'a [SExpr]) -> EResult {
-                error!(env, &pos, "macro {:?} is unimplemented", stringify!($id))
+                error!(env, pos, "macro {:?} is unimplemented", stringify!($id))
             }
         };
     }
@@ -390,12 +386,7 @@ mod ops {
         let (name, value) = match args {
             [name, value] => (name, value),
             _ => {
-                return error!(
-                    env,
-                    &pos,
-                    "define got {} arguments, but needs 2",
-                    args.len()
-                );
+                return error!(env, pos, "define got {} arguments, but needs 2", args.len());
             }
         };
         let namepos = name.source_pos();
@@ -407,7 +398,7 @@ mod ops {
         if env.variables.contains_key(name) {
             return error!(
                 env,
-                &namepos, "a variable named {:?} is already defined", name
+                namepos, "a variable named {:?} is already defined", name
             );
         }
         env.variables.insert(name, value);
@@ -419,7 +410,7 @@ mod ops {
     macro_rules! unimplemented {
         ($id:ident) => {
             fn $id(env: &mut Env, pos: Span, _args: &[(Value, Span)]) -> EResult {
-                error!(env, &pos, "function {:?} is unimplemented", stringify!($id))
+                error!(env, pos, "function {:?} is unimplemented", stringify!($id))
             }
         };
     }
