@@ -1,4 +1,5 @@
 use crate::sourcepos::{Pos, Span};
+use std::f64;
 use std::fmt;
 
 /// A type of error from parsing a number.
@@ -179,6 +180,33 @@ fn make_integer(sign: Sign, radix: Radix, digits: &[u8]) -> Option<i64> {
         }
     }
     Some(r)
+}
+
+/// Powers of 10 which are exact.
+const POWERS_OF_10: [f64; 23] = [
+    1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15, 1e16,
+    1e17, 1e18, 1e19, 1e20, 1e21, 1e22,
+];
+
+/// Compute a power of 10.
+fn pow10(n: i32) -> f64 {
+    const MAX: i32 = 22;
+    if n <= 0 {
+        1.0
+    } else if n <= MAX {
+        POWERS_OF_10[n as usize]
+    } else {
+        let mut x = POWERS_OF_10[MAX as usize];
+        let mut n = n;
+        while n >= MAX {
+            x *= POWERS_OF_10[MAX as usize];
+            n -= MAX;
+        }
+        if n > 0 {
+            x *= POWERS_OF_10[n as usize];
+        }
+        x
+    }
 }
 
 impl ParsedNumber {
@@ -376,6 +404,59 @@ impl ParsedNumber {
         match make_integer(self.sign, self.radix, self.digits.as_ref()) {
             Some(x) => Ok(x),
             None => Err(ParseError::IntegerTooLarge),
+        }
+    }
+
+    /// Convert the contained number to a floating-point value.
+    ///
+    /// Note: This is a hack for now to avoid pulling in a proper radix
+    /// conversion library. This is the cheap way of doing things, which is only
+    /// correct if the exponent and the precision of the mantissa are within a
+    /// certain (generous) range.
+    pub fn float(&self) -> f64 {
+        if self.radix != Radix::Decimal {
+            panic!("cannot convert non-decimal float");
+        }
+        if self.digits.len() == 0 {
+            return 0.0;
+        }
+        // Largest number of digits which will never overflow an i64.
+        // binary -> 63
+        // octal -> 21
+        // hexadecimal -> 15
+        const MAX_LEN: usize = 19;
+        // Number of least significant digits to ignore.
+        let bias = if self.digits.len() <= MAX_LEN {
+            0
+        } else {
+            self.digits.len() - MAX_LEN
+        };
+        let mantissa = match make_integer(Sign::Positive, Radix::Decimal, &self.digits[bias..]) {
+            Some(x) => x,
+            None => panic!("conversion overflow"), // Overflow should not happen (see above).
+        };
+        let mantissa = mantissa as f64;
+        let exponent = self.exponent.unwrap_or(0);
+        let magnitude = if exponent > 0 {
+            // 1e308 rounds to infinity.
+            if exponent >= 308 {
+                f64::INFINITY
+            } else {
+                mantissa * pow10(exponent)
+            }
+        } else if exponent < 0 {
+            // (2*63-1) * 1e-343 rounds to 0.
+            if exponent <= -343 {
+                0.0
+            } else {
+                mantissa / pow10(-exponent)
+            }
+        } else {
+            mantissa
+        };
+        match self.sign {
+            Sign::Positive => magnitude,
+            Sign::Negative => -magnitude,
         }
     }
 }
@@ -641,6 +722,48 @@ mod test {
                 Ok(_) => {
                     let output = num.integer();
                     let expected: Result<i64, ParseError> = Err(ParseError::IntegerTooLarge);
+                    if output != expected {
+                        success = false;
+                        eprintln!("Test case {} failed:", n);
+                        eprintln!("    Input: {:?}", input);
+                        eprintln!("    Output:   {:?}", output);
+                        eprintln!("    Expected: {:?}", expected);
+                    }
+                }
+            }
+        }
+        if !success {
+            eprintln!();
+            panic!("failed");
+        }
+    }
+
+    #[test]
+    fn float() {
+        const CASES: &'static [(&'static str, f64)] = &[
+            ("0.0", 0.0),
+            ("1.5", 1.5),
+            ("1e10", 1e10),
+            ("99999e22", 99999e22),
+            ("-0.00001", -0.00001),
+            ("1234e-20", 1234e-20),
+        ];
+        let mut success = true;
+        let mut num = ParsedNumber::new();
+        for (n, &(input, expected)) in CASES.iter().enumerate() {
+            let in_span = Span {
+                start: Pos(1),
+                end: Pos(1 + input.len() as u32),
+            };
+            match num.parse(input, in_span) {
+                Err((e, _)) => {
+                    success = false;
+                    eprintln!("Test case {} failed:", n);
+                    eprintln!("    Input: {:?}", input);
+                    eprintln!("    Error: {:?}", e);
+                }
+                Ok(_) => {
+                    let output = num.float();
                     if output != expected {
                         success = false;
                         eprintln!("Test case {} failed:", n);
