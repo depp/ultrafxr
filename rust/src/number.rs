@@ -10,6 +10,7 @@ pub enum ParseError {
     UnexpectedChar(char),
     NoDigits,
     NoExponentValue,
+    IntegerTooLarge,
 }
 
 impl fmt::Display for ParseError {
@@ -24,6 +25,7 @@ impl fmt::Display for ParseError {
             UnexpectedChar(c) => write!(f, "unexpected character {:?}", c),
             NoDigits => write!(f, "number has no digits"),
             NoExponentValue => write!(f, "missing exponent value"),
+            IntegerTooLarge => write!(f, "integer is too large for 64 bits"),
         }
     }
 }
@@ -145,6 +147,38 @@ fn parse_exponent(text: &str, pos: Span) -> Result<(Option<i32>, &str), (ParseEr
         }
     };
     Ok((Some(value), rest))
+}
+
+/// Create an integer from the given digits, LSB first.
+fn make_integer(sign: Sign, radix: Radix, digits: &[u8]) -> Option<i64> {
+    let mut r: i64 = 0;
+    match sign {
+        Sign::Positive => {
+            for &digit in digits.iter().rev() {
+                r = match r.checked_mul(radix as i64) {
+                    Some(r) => r,
+                    None => return None,
+                };
+                r = match r.checked_add(digit as i64) {
+                    Some(r) => r,
+                    None => return None,
+                };
+            }
+        }
+        Sign::Negative => {
+            for &digit in digits.iter().rev() {
+                r = match r.checked_mul(radix as i64) {
+                    Some(r) => r,
+                    None => return None,
+                };
+                r = match r.checked_sub(digit as i64) {
+                    Some(r) => r,
+                    None => return None,
+                };
+            }
+        }
+    }
+    Some(r)
 }
 
 impl ParsedNumber {
@@ -332,6 +366,18 @@ impl ParsedNumber {
             self.exponent = Some(exponent.saturating_add(n as i32));
         }
     }
+
+    /// Convert the contained number to an integer. Panics if the contained
+    /// number has an exponent or radix point.
+    pub fn integer(&self) -> Result<i64, ParseError> {
+        if self.exponent.is_some() {
+            panic!("not an integer");
+        }
+        match make_integer(self.sign, self.radix, self.digits.as_ref()) {
+            Some(x) => Ok(x),
+            None => Err(ParseError::IntegerTooLarge),
+        }
+    }
 }
 
 impl ToString for ParsedNumber {
@@ -492,6 +538,115 @@ mod test {
                         if num.exponent != exponent {
                             eprintln!("    Exponent: {:?}, expected {:?}", num.exponent, exponent);
                         }
+                    }
+                }
+            }
+        }
+        if !success {
+            eprintln!();
+            panic!("failed");
+        }
+    }
+
+    #[test]
+    fn integer() {
+        const CASES: &'static [(&'static str, i64)] = &[
+            ("0", 0),
+            ("1", 1),
+            ("321", 321),
+            ("+12", 12),
+            ("-25", -25),
+            ("9223372036854775807", i64::max_value()),
+            ("-9223372036854775808", i64::min_value()),
+            ("0b10110", 0b10110),
+            ("-0b11010", -0b11010),
+            ("0o777", 0o777),
+            ("-0o123", -0o123),
+            ("0xcafe", 0xcafe),
+            ("-0xdead", -0xdead),
+            (
+                "0b111111111111111111111111111111111111111111111111111111111111111",
+                i64::max_value(),
+            ),
+            (
+                "-0b1000000000000000000000000000000000000000000000000000000000000000",
+                i64::min_value(),
+            ),
+            ("0o777777777777777777777", i64::max_value()),
+            ("-0o1000000000000000000000", i64::min_value()),
+            ("0x7fffffffffffffff", i64::max_value()),
+            ("-0x8000000000000000", i64::min_value()),
+        ];
+        let mut success = true;
+        let mut num = ParsedNumber::new();
+        for (n, &(input, expected)) in CASES.iter().enumerate() {
+            let in_span = Span {
+                start: Pos(1),
+                end: Pos(1 + input.len() as u32),
+            };
+            match num
+                .parse(input, in_span)
+                .map_err(|(e, _)| e)
+                .and_then(|_| num.integer())
+            {
+                Err(e) => {
+                    success = false;
+                    eprintln!("Test case {} failed:", n);
+                    eprintln!("    Input: {:?}", input);
+                    eprintln!("    Error: {:?}", e);
+                }
+                Ok(output) => {
+                    if output != expected {
+                        success = false;
+                        eprintln!("Test case {} failed:", n);
+                        eprintln!("    Input: {:?}", input);
+                        eprintln!("    Output:   {:?}", output);
+                        eprintln!("    Expected: {:?}", expected);
+                    }
+                }
+            }
+        }
+        if !success {
+            eprintln!();
+            panic!("failed");
+        }
+    }
+
+    #[test]
+    fn integer_fail() {
+        const CASES: &'static [&'static str] = &[
+            "9223372036854775808",
+            "-9223372036854775809",
+            "0b1000000000000000000000000000000000000000000000000000000000000000",
+            "-0b1000000000000000000000000000000000000000000000000000000000000001",
+            "0o1000000000000000000000",
+            "-0o1000000000000000000001",
+            "0x8000000000000000",
+            "-0x8000000000000001",
+        ];
+        let mut success = true;
+        let mut num = ParsedNumber::new();
+        for (n, &input) in CASES.iter().enumerate() {
+            let in_span = Span {
+                start: Pos(1),
+                end: Pos(1 + input.len() as u32),
+            };
+            match num.parse(input, in_span) {
+                Err(e) => {
+                    success = false;
+                    eprintln!("Test case {} failed:", n);
+                    eprintln!("    Input: {:?}", input);
+                    eprintln!("    Error: {:?}", e);
+                }
+                Ok(_) => {
+                    let output = num.integer();
+                    let expected: Result<i64, ParseError> = Err(ParseError::IntegerTooLarge);
+                    if output != expected {
+                        success = false;
+                        eprintln!("Test case {} failed:", n);
+                        eprintln!("    Input: {:?}", input);
+                        eprintln!("    Output:   {:?}", output);
+                        eprintln!("    Expected: {:?}", expected);
                     }
                 }
             }
