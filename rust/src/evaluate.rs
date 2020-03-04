@@ -10,42 +10,6 @@ use std::fmt::{Display, Formatter, Result as FResult};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Failed;
 
-/// Error for various operations during evaluation.
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum Error {
-    Failed,
-    BadType { got: Type, expect: Type },
-    BadEType { got: EType, expect: EType },
-}
-
-impl Error {
-    /// True if the error is an evaluation failure, and the diagnostics are
-    /// already reported.
-    fn is_failed(&self) -> bool {
-        match self {
-            Error::Failed => true,
-            _ => false,
-        }
-    }
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter) -> FResult {
-        use Error::*;
-        match self {
-            Failed => write!(f, "evaluation failed"),
-            BadType { got, expect } => write!(f, "type is {}, expected {}", got, expect),
-            BadEType { got, expect } => write!(f, "type is {}, expected {}", got, expect),
-        }
-    }
-}
-
-impl From<Failed> for Error {
-    fn from(_: Failed) -> Self {
-        Error::Failed
-    }
-}
-
 /// Log an error and return an evaluation failure.
 macro_rules! error {
     ($env:expr, $loc:expr, $msg:literal) => {
@@ -60,6 +24,67 @@ macro_rules! error {
             Err(From::from(Failed))
         }
     };
+}
+
+/// Error for interpreting a value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ValueError {
+    Failed,
+    BadType { got: Type, expect: Type },
+    BadEType { got: EType, expect: EType },
+}
+
+impl Display for ValueError {
+    fn fmt(&self, f: &mut Formatter) -> FResult {
+        use ValueError::*;
+        match self {
+            Failed => write!(f, "evaluation failed"),
+            BadType { got, expect } => write!(f, "type is {}, expected {}", got, expect),
+            BadEType { got, expect } => write!(f, "type is {}, expected {}", got, expect),
+        }
+    }
+}
+
+impl From<Failed> for ValueError {
+    fn from(_: Failed) -> Self {
+        ValueError::Failed
+    }
+}
+
+/// Error for various operations during evaluation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum OpError {
+    Failed,
+    BadNArgs {
+        got: usize,
+        min: usize,
+        max: Option<usize>,
+    },
+}
+
+impl Display for OpError {
+    fn fmt(&self, f: &mut Formatter) -> FResult {
+        use OpError::*;
+        match self {
+            Failed => write!(f, "evaluation failed"),
+            BadNArgs { got, min, max } => match max {
+                Some(max) => {
+                    if min < max {
+                        write!(f, "got {} args, expected {}-{}", got, min, max)
+                    } else {
+                        write!(f, "got {} args, expected {}", got, min)
+                    }
+                }
+                None => write!(f, "got {} args, expected at least {}", got, min),
+            },
+        }
+    }
+}
+
+impl From<Failed> for OpError {
+    fn from(_: Failed) -> Self {
+        OpError::Failed
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -99,16 +124,19 @@ impl Value {
         Type(self.0.data_type(), Some(self.1))
     }
 
-    fn bad_type(&self, expect: Type) -> Error {
-        Error::BadType {
+    fn bad_type(&self, expect: Type) -> ValueError {
+        ValueError::BadType {
             got: self.get_type(),
             expect,
         }
     }
 }
 
-/// Result of evaluating a form.
-type EResult = Result<Value, Failed>;
+/// Result of evaluating a subexpression.
+type EvalResult = Result<Value, Failed>;
+
+/// Result of evaluating function or macro body.
+type OpResult = Result<Value, OpError>;
 
 /// A type of data within a value, or void.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -148,25 +176,25 @@ impl Display for Type {
 
 #[derive(Clone, Copy)]
 enum Operator {
-    Function(fn(&mut Env, Span, &[(Value, Span)]) -> EResult),
-    Macro(for<'a> fn(&mut Env<'a>, Span, &'a [SExpr]) -> EResult),
+    Function(fn(&mut Env, Span, &[(Value, Span)]) -> OpResult),
+    Macro(for<'a> fn(&mut Env<'a>, Span, &'a [SExpr]) -> OpResult),
 }
 
 struct Env<'a> {
     has_error: bool,
     err_handler: &'a mut dyn ErrorHandler,
-    variables: HashMap<&'a str, Result<Value, Failed>, RandomState>,
+    variables: HashMap<&'a str, EvalResult, RandomState>,
     operators: HashMap<&'a str, Operator, RandomState>,
     #[allow(dead_code)]
     tail_length: Option<f64>,
 }
 
 impl<'a> Env<'a> {
-    fn evaluate(&mut self, expr: &'a SExpr) -> EResult {
+    fn evaluate(&mut self, expr: &'a SExpr) -> EvalResult {
         let pos = expr.source_pos();
         match &expr.content {
             &Content::Symbol(ref name) => match self.variables.get(name.as_ref()) {
-                Some(value) => *value,
+                Some(&value) => value,
                 None => error!(self, pos, "undefined symbol: {:?}", name),
             },
             &Content::Integer(units, num) => Ok(Value(Data::Int(num), units)),
@@ -176,12 +204,12 @@ impl<'a> Env<'a> {
                     Some(x) => x,
                     None => return error!(self, pos, "cannot evaluate empty list"),
                 };
+                let name: &str = match &op.content {
+                    &Content::Symbol(ref name) => name.as_ref(),
+                    _ => return error!(self, pos, "function or macro name must be a symbol"),
+                };
                 let op = {
                     let pos = op.source_pos();
-                    let name: &str = match &op.content {
-                        &Content::Symbol(ref name) => name.as_ref(),
-                        _ => return error!(self, pos, "function or macro name must be a symbol"),
-                    };
                     match self.operators.get(name) {
                         Some(x) => *x,
                         None => {
@@ -189,7 +217,7 @@ impl<'a> Env<'a> {
                         }
                     }
                 };
-                match op {
+                let r = match op {
                     Operator::Function(f) => {
                         let mut values: Vec<(Value, Span)> = Vec::with_capacity(args.len());
                         let mut failed = false;
@@ -205,6 +233,11 @@ impl<'a> Env<'a> {
                         f(self, pos, &values)
                     }
                     Operator::Macro(f) => f(self, pos, args),
+                };
+                match r {
+                    Ok(val) => Ok(val),
+                    Err(OpError::Failed) => Err(Failed),
+                    Err(e) => error!(self, pos, "invalid call to {:?}: {}", name, e),
                 }
             }
         }
@@ -216,17 +249,17 @@ impl<'a> Env<'a> {
     }
 
     /// Unwrap the value for an argument.
-    fn arg<T>(&mut self, name: &str, pos: Span, value: Result<T, Error>) -> Result<T, Failed> {
+    fn arg<T>(&mut self, name: &str, pos: Span, value: Result<T, ValueError>) -> Result<T, Failed> {
         match value {
             Ok(value) => Ok(value),
-            Err(Error::Failed) => Err(Failed),
+            Err(ValueError::Failed) => Err(Failed),
             Err(e) => error!(self, pos, "invalid value for {}: {}", name, e),
         }
     }
 }
 
 /// Convert a result to void.
-fn get_void(r: EResult) -> Result<(), Error> {
+fn get_void(r: EvalResult) -> Result<(), ValueError> {
     match r? {
         Value(Data::Void, _) => Ok(()),
         val => Err(val.bad_type(Type::void())),
@@ -234,7 +267,7 @@ fn get_void(r: EResult) -> Result<(), Error> {
 }
 
 /// Get any non-void value.
-fn get_value(r: EResult) -> Result<Value, Error> {
+fn get_value(r: EvalResult) -> Result<Value, ValueError> {
     let val = r?;
     match &val.0 {
         Data::Void => Err(val.bad_type(Type(DataType::NonVoid, None))),
@@ -243,7 +276,7 @@ fn get_value(r: EResult) -> Result<Value, Error> {
 }
 
 /// Convert a result to a node with the given units.
-fn get_node(units: Units, r: EResult) -> Result<Node, Error> {
+fn get_node(units: Units, r: EvalResult) -> Result<Node, ValueError> {
     match r? {
         Value(Data::Node(node), vunits) if vunits == units => Ok(node),
         val => Err(val.bad_type(Type(DataType::Node, Some(units)))),
@@ -251,10 +284,10 @@ fn get_node(units: Units, r: EResult) -> Result<Node, Error> {
 }
 
 /// Get the name of a symbol.
-fn get_symbol(expr: &SExpr) -> Result<&str, Error> {
+fn get_symbol(expr: &SExpr) -> Result<&str, ValueError> {
     match &expr.content {
         &Content::Symbol(ref name) => Ok(name),
-        _ => Err(Error::BadEType {
+        _ => Err(ValueError::BadEType {
             got: expr.get_type(),
             expect: EType::Symbol,
         }),
@@ -281,7 +314,8 @@ pub fn evaluate_program(err_handler: &mut dyn ErrorHandler, program: &[SExpr]) -
     };
     for form in first.iter() {
         match get_void(env.evaluate(form)) {
-            Err(e) if !e.is_failed() => {
+            Err(ValueError::Failed) => (),
+            Err(e) => {
                 env.error(
                     form.source_pos(),
                     format!("bad top-level statement: {}", e).as_ref(),
@@ -291,13 +325,12 @@ pub fn evaluate_program(err_handler: &mut dyn ErrorHandler, program: &[SExpr]) -
         }
     }
     let _node: Node = match get_node(Units::volt(1), env.evaluate(last)) {
+        Err(ValueError::Failed) => return None,
         Err(e) => {
-            if !e.is_failed() {
-                env.error(
-                    last.source_pos(),
-                    format!("bad program output: {}", e).as_ref(),
-                );
-            }
+            env.error(
+                last.source_pos(),
+                format!("bad program output: {}", e).as_ref(),
+            );
             return None;
         }
         Ok(node) => node,
@@ -376,17 +409,21 @@ mod ops {
 
     macro_rules! unimplemented {
         ($id:ident) => {
-            fn $id<'a>(env: &mut Env<'a>, pos: Span, _args: &'a [SExpr]) -> EResult {
+            fn $id<'a>(env: &mut Env<'a>, pos: Span, _args: &'a [SExpr]) -> OpResult {
                 error!(env, pos, "macro {:?} is unimplemented", stringify!($id))
             }
         };
     }
 
-    fn define<'a>(env: &mut Env<'a>, pos: Span, args: &'a [SExpr]) -> EResult {
+    fn define<'a>(env: &mut Env<'a>, _pos: Span, args: &'a [SExpr]) -> OpResult {
         let (name, value) = match args {
             [name, value] => (name, value),
             _ => {
-                return error!(env, pos, "define got {} arguments, but needs 2", args.len());
+                return Err(OpError::BadNArgs {
+                    got: args.len(),
+                    min: 2,
+                    max: Some(2),
+                })
             }
         };
         let namepos = name.source_pos();
@@ -409,7 +446,7 @@ mod ops {
 
     macro_rules! unimplemented {
         ($id:ident) => {
-            fn $id(env: &mut Env, pos: Span, _args: &[(Value, Span)]) -> EResult {
+            fn $id(env: &mut Env, pos: Span, _args: &[(Value, Span)]) -> OpResult {
                 error!(env, pos, "function {:?} is unimplemented", stringify!($id))
             }
         };
