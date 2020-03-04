@@ -1,6 +1,27 @@
 use crate::sourcepos::{HasPos, Span};
 use crate::units::Units;
-use std::fmt::Write;
+use std::fmt::{Display, Formatter, Result as FmtResult, Write};
+
+/// The type of an s-expression.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Type {
+    Symbol,
+    Integer,
+    Float,
+    List,
+}
+
+impl Display for Type {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        use Type::*;
+        f.write_str(match self {
+            Symbol => "symbol",
+            Integer => "integer",
+            Float => "float",
+            List => "list",
+        })
+    }
+}
 
 /// The contents of an s-expression.
 #[derive(Debug)]
@@ -9,6 +30,18 @@ pub enum Content {
     Integer(Units, i64),
     Float(Units, f64),
     List(Box<[SExpr]>),
+}
+
+impl Content {
+    /// Get the content's type.
+    fn get_type(&self) -> Type {
+        match self {
+            Content::Symbol(_) => Type::Symbol,
+            Content::Integer(_, _) => Type::Integer,
+            Content::Float(_, _) => Type::Float,
+            Content::List(_) => Type::List,
+        }
+    }
 }
 
 /// An s-expression.
@@ -25,6 +58,11 @@ impl HasPos for SExpr {
 }
 
 impl SExpr {
+    /// Get the expression's type.
+    pub fn get_type(&self) -> Type {
+        self.content.get_type()
+    }
+
     /// Print the s-expression to a string.
     pub fn print(&self) -> String {
         let mut out = String::new();

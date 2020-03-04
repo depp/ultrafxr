@@ -1,4 +1,5 @@
 use crate::consolelogger::ConsoleLogger;
+use crate::evaluate::evaluate_program;
 use crate::note::Note;
 use crate::parseargs::{Arg, Args, UsageError};
 use crate::parser::{ParseResult, Parser};
@@ -137,14 +138,17 @@ impl Command {
                         break;
                     }
                     ParseResult::Error => break,
-                    ParseResult::Value(expr) => exprs.push(expr),
+                    ParseResult::Value(expr) => {
+                        if self.verbose {
+                            eprintln!("Expression: {}", expr.print());
+                        }
+                        exprs.push(expr);
+                    }
                 }
             }
             exprs
         };
-        for expr in exprs.iter() {
-            println!("Expr: {}", expr.print());
-        }
+        evaluate_program(&mut err_handler, exprs.as_ref());
         Ok(())
     }
 }

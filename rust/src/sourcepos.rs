@@ -13,6 +13,14 @@ pub struct Span {
 }
 
 impl Span {
+    /// An empty span that refers to no source locations.
+    pub fn none() -> Self {
+        Span {
+            start: Pos(0),
+            end: Pos(0),
+        }
+    }
+
     /// True if the span contains nothing.
     #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {

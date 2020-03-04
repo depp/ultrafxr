@@ -2,6 +2,7 @@ mod cmd_sfx;
 mod color;
 mod consolelogger;
 mod error;
+mod evaluate;
 mod note;
 mod number;
 mod parser;
