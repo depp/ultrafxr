@@ -74,7 +74,7 @@ pub struct Units {
 macro_rules! def_units {
     ($($id:ident),*) => {
         $(
-            fn $id(n: i8) -> Self {
+            pub fn $id(n: i8) -> Self {
                 let mut u: Units = Default::default();
                 u.$id = n;
                 u
@@ -84,9 +84,19 @@ macro_rules! def_units {
 }
 
 impl Units {
+    /// True if this is the scalar unit, i.e., dimensionless or unitless.
+    pub fn is_scalar(&self) -> bool {
+        self == &Units::scalar()
+    }
+
+    /// Return the scalar (dimensionless, unitless) units.
+    pub fn scalar() -> Self {
+        Default::default()
+    }
+
     def_units!(volt, second, radian, decibel);
 
-    fn hertz(n: i8) -> Self {
+    pub fn hertz(n: i8) -> Self {
         Units::second(-n)
     }
 
