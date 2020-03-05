@@ -10,20 +10,22 @@ use std::fmt::{Display, Formatter, Result as FResult};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Failed;
 
-/// Log an error and return an evaluation failure.
-macro_rules! error {
+/// Log an error, returning void.
+macro_rules! log_error {
     ($env:expr, $loc:expr, $msg:literal) => {
-        {
-            $env.error($loc, $msg);
-            Err(From::from(Failed))
-        }
+        $env.error($loc, $msg);
     };
     ($env:expr, $loc:expr, $($tts:expr),*) => {
-        {
-            $env.error($loc, format!($($tts),*).as_ref());
-            Err(From::from(Failed))
-        }
+        $env.error($loc, format!($($tts),*).as_ref());
     };
+}
+
+/// Log an error and return an evaluation failure.
+macro_rules! error {
+    ($env:expr, $loc:expr, $($tts:expr),*) => {{
+        log_error!($env, $loc, $($tts),*);
+        Err(From::from(Failed))
+    }};
 }
 
 /// Error for interpreting a value.
@@ -405,10 +407,7 @@ pub fn evaluate_program(err_handler: &mut dyn ErrorHandler, program: &[SExpr]) -
             EvalResult(_, Ok(())) => (),
             EvalResult(label, Err(e)) => match e {
                 ValueError::Failed => (),
-                _ => env.error(
-                    label.pos,
-                    format!("invalid top-level statement: {}", e).as_ref(),
-                ),
+                _ => log_error!(env, label.pos, "invalid top-level statement: {}", e),
             },
         }
     }
@@ -417,7 +416,7 @@ pub fn evaluate_program(err_handler: &mut dyn ErrorHandler, program: &[SExpr]) -
         EvalResult(label, Err(e)) => {
             match e {
                 ValueError::Failed => (),
-                _ => env.error(label.pos, format!("invalid program body: {}", e).as_ref()),
+                _ => log_error!(env, label.pos, "invalid program body: {}", e),
             }
             return None;
         }
