@@ -133,21 +133,36 @@ fn func_arg(name: &'static str, value: &EvalResult<Value>) -> EvalResult<Value> 
     }
 }
 
+macro_rules! count_args {
+    () => (0usize);
+    ($head:ident $($tail:ident)*) => (1usize + count_args!($($tail)*));
+}
+
+macro_rules! get_args {
+    ($args:ident, $($name:ident),*) => {
+        let $($name),* = match $args {
+            [$($name),*] => ($(func_arg(stringify!($name), $name)),*),
+            _ => {
+                let n = count_args!($($name)*);
+                return Err(OpError::BadNArgs {
+                    got: $args.len(),
+                    min: n,
+                    max: Some(n),
+                });
+            }
+        };
+    };
+    ($args:ident, $($name:ident),*,) => {
+        get_args!($args, $($name),*)
+    };
+}
+
 // =============================================================================================
 // Parameters
 // =============================================================================================
 
 fn note(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
-    let offset = match args {
-        [offset] => func_arg("offset", offset),
-        _ => {
-            return Err(OpError::BadNArgs {
-                got: args.len(),
-                min: 1,
-                max: Some(1),
-            });
-        }
-    };
+    get_args!(args, offset);
     let offset = offset
         .into_int()
         .and_then(|i| i32::try_from(i).map_err(|_| unimplemented!()))
