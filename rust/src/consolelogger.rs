@@ -77,5 +77,6 @@ impl<'a> ErrorHandler for ConsoleLogger<'a> {
         if let Some(text_pos) = source_text.span(pos) {
             write_source(&mut stderr, &source_text, &text_pos).unwrap();
         }
+        writeln!(stderr).unwrap();
     }
 }
