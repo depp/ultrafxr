@@ -154,6 +154,7 @@ impl Value {
     fn into_float(self, units: Units) -> Result<f64, ValueError> {
         match self {
             Value(Data::Float(num), vunits) if units == vunits => Ok(num),
+            Value(Data::Int(num), vunits) if units == vunits => Ok(num as f64),
             val => Err(val.bad_type(Type(DataType::Float, Some(units)))),
         }
     }
