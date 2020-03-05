@@ -1,4 +1,5 @@
 use crate::error::ErrorHandler;
+use crate::graph::{Graph, Node, SignalRef};
 use crate::sexpr::{Content, SExpr, Type as EType};
 use crate::sourcepos::{HasPos, Span};
 use crate::units::Units;
@@ -89,16 +90,12 @@ impl From<Failed> for OpError {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-struct Node;
-
 /// The data within a value, without units.
 #[derive(Debug, Clone, Copy)]
 enum Data {
     Int(i64),
     Float(f64),
-    #[allow(dead_code)]
-    Node(Node),
+    Signal(SignalRef),
     Void,
 }
 
@@ -107,7 +104,7 @@ impl Data {
         match self {
             Data::Int(_) => DataType::Int,
             Data::Float(_) => DataType::Float,
-            Data::Node(_) => DataType::Node,
+            Data::Signal(_) => DataType::Signal,
             Data::Void => DataType::Void,
         }
     }
@@ -147,10 +144,17 @@ impl Value {
         }
     }
 
-    fn into_node(self, units: Units) -> Result<Node, ValueError> {
+    fn into_int(self) -> Result<i64, ValueError> {
         match self {
-            Value(Data::Node(node), vunits) if vunits == units => Ok(node),
-            _ => Err(self.bad_type(Type(DataType::Node, Some(units)))),
+            Value(Data::Int(num), units) if units.is_scalar() => Ok(num),
+            val => Err(val.bad_type(Type(DataType::Int, Some(Units::scalar())))),
+        }
+    }
+
+    fn into_signal(self, units: Units) -> Result<SignalRef, ValueError> {
+        match self {
+            Value(Data::Signal(sig), vunits) if vunits == units => Ok(sig),
+            val => Err(val.bad_type(Type(DataType::Signal, Some(units)))),
         }
     }
 }
@@ -162,7 +166,7 @@ type OpResult = Result<Value, OpError>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DataType {
     Void,
-    Node,
+    Signal,
     Int,
     Float,
     NonVoid,
@@ -182,7 +186,7 @@ impl Display for Type {
     fn fmt(&self, f: &mut Formatter) -> FResult {
         f.write_str(match self.0 {
             DataType::Void => "void",
-            DataType::Node => "buffer",
+            DataType::Signal => "signal",
             DataType::Int => "int",
             DataType::Float => "float",
             DataType::NonVoid => "non-void",
@@ -263,8 +267,12 @@ impl EvalResult<Value> {
         self.and_then(Value::into_nonvoid)
     }
 
-    fn into_node(self, units: Units) -> EvalResult<Node> {
-        self.and_then(|v| v.into_node(units))
+    fn into_int(self) -> EvalResult<i64> {
+        self.and_then(Value::into_int)
+    }
+
+    fn into_signal(self, units: Units) -> EvalResult<SignalRef> {
+        self.and_then(|v| v.into_signal(units))
     }
 }
 
@@ -303,6 +311,7 @@ struct Env<'a> {
     err_handler: &'a mut dyn ErrorHandler,
     variables: HashMap<&'a str, Result<Value, Failed>, RandomState>,
     operators: HashMap<&'a str, Operator, RandomState>,
+    graph: Graph,
     #[allow(dead_code)]
     tail_length: Option<f64>,
 }
@@ -376,6 +385,15 @@ impl<'a> Env<'a> {
         self.has_error = true;
         self.err_handler.handle(pos, msg);
     }
+
+    fn new_node(&mut self, pos: Span, units: Units, node: impl Node) -> Value {
+        self.new_node_box(pos, units, Box::new(node))
+    }
+
+    fn new_node_box(&mut self, _pos: Span, units: Units, node: Box<dyn Node>) -> Value {
+        let sig = self.graph.add(node);
+        Value(Data::Signal(sig), units)
+    }
 }
 
 /// Get the name of a symbol.
@@ -390,7 +408,10 @@ fn get_symbol(expr: &SExpr) -> Result<&str, ValueError> {
 }
 
 /// Evaluate an audio synthesis program.
-pub fn evaluate_program(err_handler: &mut dyn ErrorHandler, program: &[SExpr]) -> Option<()> {
+pub fn evaluate_program(
+    err_handler: &mut dyn ErrorHandler,
+    program: &[SExpr],
+) -> Option<(Graph, SignalRef)> {
     // Break program into the leading forms and the last form. The last form is
     // considered to be the output, and must produce a value.
     let (last, first) = match program.split_last() {
@@ -405,6 +426,7 @@ pub fn evaluate_program(err_handler: &mut dyn ErrorHandler, program: &[SExpr]) -
         err_handler,
         variables: HashMap::new(),
         operators: ops::operators(),
+        graph: Graph::new(),
         tail_length: None,
     };
     for form in first.iter() {
@@ -416,8 +438,8 @@ pub fn evaluate_program(err_handler: &mut dyn ErrorHandler, program: &[SExpr]) -
             },
         }
     }
-    let _node: Node = match env.evaluate(last).into_node(Units::volt(1)) {
-        EvalResult(_, Ok(node)) => node,
+    let signal = match env.evaluate(last).into_signal(Units::volt(1)) {
+        EvalResult(_, Ok(sig)) => sig,
         EvalResult(label, Err(e)) => {
             match e {
                 ValueError::Failed => (),
@@ -429,13 +451,15 @@ pub fn evaluate_program(err_handler: &mut dyn ErrorHandler, program: &[SExpr]) -
     if env.has_error {
         return None;
     }
-    Some(())
+    Some((env.graph, signal))
 }
 
 // =================================================================================================
 
 mod ops {
     use super::*;
+    use crate::graph::op;
+    use std::convert::TryFrom;
 
     pub(super) fn operators() -> HashMap<&'static str, Operator, RandomState> {
         let mut map = HashMap::new();
@@ -452,52 +476,50 @@ mod ops {
             //
             "envelope",
         ];
-        const UNIMPL_FUNCS: &'static [&'static str] = &[
-            //
-            "*",
-            "note",
-            "oscillator",
-            "sawtooth",
-            "sine",
-            "noise",
-            "highPass",
-            "lowPass2",
-            "highPass2",
-            "bandPass2",
-            "lowPass4",
-            "saturate",
-            "rectify",
-            "multiply",
-            "frequency",
-            "mix",
-            "phase-mod",
-            "overtone",
-        ];
         for &name in UNIMPL_MACROS.iter() {
             add(&mut map, name, Operator::Macro(None));
-        }
-        for &name in UNIMPL_FUNCS.iter() {
-            add(&mut map, name, Operator::Function(None));
         }
         macro_rules! macros {
             ($($f:ident);*;) => {
                 $(add(&mut map, stringify!($f), Operator::Macro(Some($f)));)*
             };
         }
-        #[allow(unused_macros)]
-        macro_rules! functions {
-            ($($f:ident);*;) => {
-                $(add(&mut map, stringify!($f), Operator::Function(Some($f)));)*
+        macro_rules! function {
+            ($name:literal, !) => {
+                add(&mut map, $name, Operator::Function(None))
+            };
+            ($name:literal, $func:ident) => {
+                add(&mut map, $name, Operator::Function(Some($func)))
             };
         }
-        #[allow(unused_macros)]
-        macro_rules! named_functions {
-            ($(($name:literal, $f:ident));*;) => {
-                $(add(&mut map, $name, Operator::Function($f));)*
+        macro_rules! functions {
+            ($($name:literal => $val:tt),*,) => {
+                $(function!($name, $val));*
             };
         }
         macros!(
             define;
+        );
+        functions!(
+            //
+            "*" => !,
+            "note" => note,
+            "oscillator" => !,
+            "sawtooth" => !,
+            "sine" => !,
+            "noise" => !,
+            "highPass" => !,
+            "lowPass2" => !,
+            "highPass2" => !,
+            "bandPass2" => !,
+            "lowPass4" => !,
+            "saturate" => !,
+            "rectify" => !,
+            "multiply" => !,
+            "frequency" => !,
+            "mix" => !,
+            "phase-mod" => !,
+            "overtone" => !,
         );
         map
     }
@@ -514,7 +536,7 @@ mod ops {
                     got: args.len(),
                     min: 2,
                     max: Some(2),
-                })
+                });
             }
         };
         let mut name = name.and_then(get_symbol);
@@ -545,7 +567,24 @@ mod ops {
     // Parameters
     // =============================================================================================
 
-    // note
+    fn note(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
+        let offset = match args {
+            [offset] => offset.clone(),
+            _ => {
+                return Err(OpError::BadNArgs {
+                    got: args.len(),
+                    min: 1,
+                    max: Some(1),
+                });
+            }
+        };
+        let offset = offset
+            .into_int()
+            .and_then(|i| i32::try_from(i).map_err(|_| unimplemented!()))
+            .unwrap(env);
+        let offset = offset?;
+        Ok(env.new_node(pos, Units::hertz(1), op::Note { offset }))
+    }
 
     // =============================================================================================
     // Oscillators and generators

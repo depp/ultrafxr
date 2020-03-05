@@ -3,6 +3,7 @@ mod color;
 mod consolelogger;
 mod error;
 mod evaluate;
+mod graph;
 mod note;
 mod number;
 mod parser;
