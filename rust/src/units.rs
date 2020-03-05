@@ -200,7 +200,7 @@ impl fmt::Display for Units {
         write_unit(f, &mut has_text, "rad", self.radian)?;
         write_unit(f, &mut has_text, "dB", self.decibel)?;
         if !has_text {
-            f.write_str("1")?;
+            f.write_str("scalar")?;
         }
         Ok(())
     }
@@ -213,7 +213,7 @@ mod test {
 
     #[test]
     fn display() {
-        assert_eq!(Units::default().to_string(), "1");
+        assert_eq!(Units::default().to_string(), "scalar");
         assert_eq!(Units::volt(1).to_string(), "V");
         assert_eq!(Units::second(1).to_string(), "s");
         assert_eq!(Units::radian(1).to_string(), "rad");
