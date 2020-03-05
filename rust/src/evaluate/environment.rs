@@ -30,7 +30,7 @@ macro_rules! error {
 }
 
 /// Error for interpreting a value.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueError {
     Failed,
     BadType { got: Type, expect: Type },

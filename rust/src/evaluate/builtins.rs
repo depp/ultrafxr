@@ -119,12 +119,27 @@ fn define<'a>(env: &mut Env<'a>, _pos: Span, args: &'a [SExpr]) -> OpResult {
 // envelope
 
 // =============================================================================================
+// Functions
+// =============================================================================================
+
+/// Wrap a function argument with information about its name and source location.
+fn func_arg(name: &'static str, value: &EvalResult<Value>) -> EvalResult<Value> {
+    match value {
+        EvalResult(label, value) => {
+            let mut label = *label;
+            label.name = Some(name);
+            EvalResult(label, *value)
+        }
+    }
+}
+
+// =============================================================================================
 // Parameters
 // =============================================================================================
 
 fn note(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
     let offset = match args {
-        [offset] => offset.clone(),
+        [offset] => func_arg("offset", offset),
         _ => {
             return Err(OpError::BadNArgs {
                 got: args.len(),
