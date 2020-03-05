@@ -17,36 +17,26 @@ pub fn operators() -> HashMap<&'static str, Operator, RandomState> {
             panic!("duplicate operator name: {:?}", name);
         }
     }
-    const UNIMPL_MACROS: &'static [&'static str] = &[
-        //
-        "envelope",
-    ];
-    for &name in UNIMPL_MACROS.iter() {
-        add(&mut map, name, Operator::Macro(None));
-    }
-    macro_rules! macros {
-            ($($f:ident);*;) => {
-                $(add(&mut map, stringify!($f), Operator::Macro(Some($f)));)*
-            };
-        }
-    macro_rules! function {
-        ($name:literal, !) => {
-            add(&mut map, $name, Operator::Function(None))
+    macro_rules! operator {
+        ($kind:ident, $name:literal, !) => {
+            add(&mut map, $name, Operator::$kind(None))
         };
-        ($name:literal, $func:ident) => {
-            add(&mut map, $name, Operator::Function(Some($func)))
+        ($kind:ident, $name:literal, $func:ident) => {
+            add(&mut map, $name, Operator::$kind(Some($func)))
         };
     }
-    macro_rules! functions {
-            ($($name:literal => $val:tt),*,) => {
-                $(function!($name, $val));*
-            };
-        }
-    macros!(
-        define;
+    macro_rules! operators {
+        ($kind:ident, $($name:literal => $val:tt),*,) => {
+            $(operator!($kind, $name, $val));*
+        };
+    }
+    operators!(
+        Macro,
+        "define" => define,
+        "envelope" => !,
     );
-    functions!(
-        //
+    operators!(
+        Function,
         "*" => multiply,
         "note" => note,
         "oscillator" => oscillator,
