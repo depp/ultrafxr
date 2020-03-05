@@ -94,7 +94,7 @@ pub mod ops {
     op!(Noise, []);
 
     // Filters
-    op!(HighPass, [input], [freq: f64]);
+    op!(HighPass, [input], [frequency: f64]);
     op!(
         StateVariableFilter,
         [input, frequency],

@@ -151,6 +151,13 @@ impl Value {
         }
     }
 
+    fn into_float(self, units: Units) -> Result<f64, ValueError> {
+        match self {
+            Value(Data::Float(num), vunits) if units == vunits => Ok(num),
+            val => Err(val.bad_type(Type(DataType::Float, Some(units)))),
+        }
+    }
+
     fn into_signal(self, units: Units) -> Result<SignalRef, ValueError> {
         match self {
             Value(Data::Signal(sig), vunits) if vunits == units => Ok(sig),
@@ -269,6 +276,10 @@ impl EvalResult<Value> {
 
     pub fn into_int(self) -> EvalResult<i64> {
         self.and_then(Value::into_int)
+    }
+
+    pub fn into_float(self, units: Units) -> EvalResult<f64> {
+        self.and_then(|v| v.into_float(units))
     }
 
     pub fn into_signal(self, units: Units) -> EvalResult<SignalRef> {

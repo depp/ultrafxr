@@ -49,11 +49,11 @@ pub fn operators() -> HashMap<&'static str, Operator, RandomState> {
         //
         "*" => !,
         "note" => note,
-        "oscillator" => !,
+        "oscillator" => oscillator,
         "sawtooth" => !,
-        "sine" => !,
+        "sine" => sine,
         "noise" => !,
-        "highPass" => !,
+        "highPass" => high_pass,
         "lowPass2" => !,
         "highPass2" => !,
         "bandPass2" => !,
@@ -64,7 +64,7 @@ pub fn operators() -> HashMap<&'static str, Operator, RandomState> {
         "frequency" => !,
         "mix" => !,
         "phase-mod" => !,
-        "overtone" => !,
+        "overtone" => overtone,
     );
     map
 }
@@ -138,10 +138,12 @@ macro_rules! count_args {
     ($head:ident $($tail:ident)*) => (1usize + count_args!($($tail)*));
 }
 
-macro_rules! get_args {
+macro_rules! parse_args {
     ($args:ident, $($name:ident),*) => {
-        let $($name),* = match $args {
-            [$($name),*] => ($(func_arg(stringify!($name), $name)),*),
+        // TODO: remove the _ in pattern once
+        // https://github.com/rust-lang/rust/issues/66295 is fixed in stable.
+        let (_, $($name),*) = match $args {
+            [$($name),*] => ((), $(func_arg(stringify!($name), $name)),*),
             _ => {
                 let n = count_args!($($name)*);
                 return Err(OpError::BadNArgs {
@@ -153,7 +155,7 @@ macro_rules! get_args {
         };
     };
     ($args:ident, $($name:ident),*,) => {
-        get_args!($args, $($name),*)
+        parse_args!($args, $($name),*)
     };
 }
 
@@ -162,29 +164,58 @@ macro_rules! get_args {
 // =============================================================================================
 
 fn note(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
-    get_args!(args, offset);
+    parse_args!(args, offset);
     let offset = offset
         .into_int()
         .and_then(|i| i32::try_from(i).map_err(|_| unimplemented!()))
         .unwrap(env);
-    let offset = offset?;
-    Ok(env.new_node(pos, Units::hertz(1), ops::Note { offset }))
+    Ok(env.new_node(pos, Units::hertz(1), ops::Note { offset: offset? }))
 }
 
 // =============================================================================================
 // Oscillators and generators
 // =============================================================================================
 
-// oscillator
+fn oscillator(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
+    parse_args!(args, frequency);
+    let frequency = frequency.into_signal(Units::hertz(1)).unwrap(env);
+    Ok(env.new_node(
+        pos,
+        Units::radian(1),
+        ops::Oscillator {
+            inputs: [frequency?],
+        },
+    ))
+}
+
 // sawtooth
-// sine
+
+fn sine(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
+    parse_args!(args, phase);
+    let phase = phase.into_signal(Units::radian(1)).unwrap(env);
+    Ok(env.new_node(pos, Units::volt(1), ops::Sine { inputs: [phase?] }))
+}
+
 // noise
 
 // =============================================================================================
 // Filters
 // =============================================================================================
 
-// high_pass
+fn high_pass(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
+    parse_args!(args, frequency, input);
+    let frequency = frequency.into_float(Units::hertz(1)).unwrap(env);
+    let input = input.into_signal(Units::volt(1)).unwrap(env);
+    Ok(env.new_node(
+        pos,
+        Units::volt(1),
+        ops::HighPass {
+            inputs: [input?],
+            frequency: frequency?,
+        },
+    ))
+}
+
 // low_pass_2
 // high_pass_2
 // band_pass_2
@@ -205,4 +236,20 @@ fn note(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
 // frequency
 // mix
 // phase_mod
-// overtone
+
+fn overtone(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
+    parse_args!(args, overtone, phase);
+    let overtone = overtone
+        .into_int()
+        .and_then(|i| i32::try_from(i).map_err(|_| unimplemented!()))
+        .unwrap(env);
+    let phase = phase.into_signal(Units::radian(1)).unwrap(env);
+    Ok(env.new_node(
+        pos,
+        Units::radian(1),
+        ops::ScaleInt {
+            inputs: [phase?],
+            scale: overtone?,
+        },
+    ))
+}
