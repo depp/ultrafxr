@@ -294,8 +294,8 @@ fn macro_arg<'a>(name: &'static str, expr: &'a SExpr) -> EvalResult<&'a SExpr> {
 
 #[derive(Clone, Copy)]
 enum Operator {
-    Function(fn(&mut Env, Span, &[EvalResult<Value>]) -> OpResult),
-    Macro(for<'a> fn(&mut Env<'a>, Span, &'a [SExpr]) -> OpResult),
+    Function(Option<fn(&mut Env, Span, &[EvalResult<Value>]) -> OpResult>),
+    Macro(Option<for<'a> fn(&mut Env<'a>, Span, &'a [SExpr]) -> OpResult>),
 }
 
 struct Env<'a> {
@@ -339,24 +339,29 @@ impl<'a> Env<'a> {
                     &Content::Symbol(ref name) => name.as_ref(),
                     _ => return error!(self, pos, "function or macro name must be a symbol"),
                 };
-                let op = {
-                    let pos = op.source_pos();
-                    match self.operators.get(name) {
-                        Some(x) => *x,
-                        None => {
-                            return error!(self, pos, "undefined function or macro: {:?}", name)
-                        }
-                    }
+                let oppos = op.source_pos();
+                let op = match self.operators.get(name) {
+                    Some(x) => *x,
+                    None => return error!(self, oppos, "undefined function or macro: {:?}", name),
                 };
                 let r = match op {
                     Operator::Function(f) => {
+                        if f.is_none() {
+                            log_error!(self, oppos, "unimplemented function: {}", name);
+                        }
                         let mut values: Vec<EvalResult<Value>> = Vec::with_capacity(args.len());
                         for arg in args.iter() {
                             values.push(self.evaluate(arg));
                         }
-                        f(self, pos, &values)
+                        match f {
+                            Some(f) => f(self, pos, &values),
+                            None => Err(OpError::Failed),
+                        }
                     }
-                    Operator::Macro(f) => f(self, pos, args),
+                    Operator::Macro(f) => match f {
+                        Some(f) => f(self, pos, args),
+                        None => error!(self, oppos, "unimplemented macro: {}", name),
+                    },
                 };
                 match r {
                     Ok(val) => Ok(val),
@@ -443,16 +448,49 @@ mod ops {
                 panic!("duplicate operator name: {:?}", name);
             }
         }
+        const UNIMPL_MACROS: &'static [&'static str] = &[
+            //
+            "envelope",
+        ];
+        const UNIMPL_FUNCS: &'static [&'static str] = &[
+            //
+            "*",
+            "note",
+            "oscillator",
+            "sawtooth",
+            "sine",
+            "noise",
+            "highPass",
+            "lowPass2",
+            "highPass2",
+            "bandPass2",
+            "lowPass4",
+            "saturate",
+            "rectify",
+            "multiply",
+            "frequency",
+            "mix",
+            "phase-mod",
+            "overtone",
+        ];
+        for &name in UNIMPL_MACROS.iter() {
+            add(&mut map, name, Operator::Macro(None));
+        }
+        for &name in UNIMPL_FUNCS.iter() {
+            add(&mut map, name, Operator::Function(None));
+        }
         macro_rules! macros {
             ($($f:ident);*;) => {
-                $(add(&mut map, stringify!($f), Operator::Macro($f));)*
+                $(add(&mut map, stringify!($f), Operator::Macro(Some($f)));)*
             };
         }
+        #[allow(unused_macros)]
         macro_rules! functions {
             ($($f:ident);*;) => {
-                $(add(&mut map, stringify!($f), Operator::Function($f));)*
+                $(add(&mut map, stringify!($f), Operator::Function(Some($f)));)*
             };
         }
+        #[allow(unused_macros)]
         macro_rules! named_functions {
             ($(($name:literal, $f:ident));*;) => {
                 $(add(&mut map, $name, Operator::Function($f));)*
@@ -460,46 +498,13 @@ mod ops {
         }
         macros!(
             define;
-            envelope;
-        );
-        functions!(
-            note;
-            oscillator;
-            sawtooth;
-            sine;
-            noise;
-            // high_pass;
-            // low_pass_2;
-            // high_pass_2;
-            // band_pass_2;
-            // low_pass_4;
-            saturate;
-            rectify;
-            // multiply;
-            frequency;
-            mix;
-            // phase_mod;
-            overtone;
-        );
-        named_functions!(
-            ("*", multiply);
-            ("phase-mod", phase_mod);
-            ("highPass", high_pass);
-            ("lowPass2", low_pass_2);
-            ("highPass2", high_pass_2);
-            ("bandPass2", band_pass_2);
-            ("lowPass4", low_pass_4);
         );
         map
     }
 
-    macro_rules! unimplemented {
-        ($id:ident) => {
-            fn $id<'a>(env: &mut Env<'a>, pos: Span, _args: &'a [SExpr]) -> OpResult {
-                error!(env, pos, "macro {:?} is unimplemented", stringify!($id))
-            }
-        };
-    }
+    // =============================================================================================
+    // Macros
+    // =============================================================================================
 
     fn define<'a>(env: &mut Env<'a>, _pos: Span, args: &'a [SExpr]) -> OpResult {
         let (name, value) = match args {
@@ -534,55 +539,47 @@ mod ops {
         Ok(Value::void())
     }
 
-    unimplemented!(envelope);
-
-    macro_rules! unimplemented {
-        ($id:ident) => {
-            fn $id(env: &mut Env, pos: Span, _args: &[EvalResult<Value>]) -> OpResult {
-                error!(env, pos, "function {:?} is unimplemented", stringify!($id))
-            }
-        };
-    }
+    // envelope
 
     // =============================================================================================
     // Parameters
     // =============================================================================================
 
-    unimplemented!(note);
+    // note
 
     // =============================================================================================
     // Oscillators and generators
     // =============================================================================================
 
-    unimplemented!(oscillator);
-    unimplemented!(sawtooth);
-    unimplemented!(sine);
-    unimplemented!(noise);
+    // oscillator
+    // sawtooth
+    // sine
+    // noise
 
     // =============================================================================================
     // Filters
     // =============================================================================================
 
-    unimplemented!(high_pass);
-    unimplemented!(low_pass_2);
-    unimplemented!(high_pass_2);
-    unimplemented!(band_pass_2);
-    unimplemented!(low_pass_4);
+    // high_pass
+    // low_pass_2
+    // high_pass_2
+    // band_pass_2
+    // low_pass_4
 
     // =============================================================================================
     // Distortion
     // =============================================================================================
 
-    unimplemented!(saturate);
-    unimplemented!(rectify);
+    // saturate
+    // rectify
 
     // =============================================================================================
     // Utilities
     // =============================================================================================
 
-    unimplemented!(multiply);
-    unimplemented!(frequency);
-    unimplemented!(mix);
-    unimplemented!(phase_mod);
-    unimplemented!(overtone);
+    // multiply
+    // frequency
+    // mix
+    // phase_mod
+    // overtone
 }
