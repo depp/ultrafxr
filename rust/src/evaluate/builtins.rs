@@ -1,5 +1,5 @@
 use super::environment::*;
-use crate::graph::ops;
+use crate::graph::{ops, Node};
 use crate::sexpr::SExpr;
 use crate::sourcepos::{HasPos, Span};
 use crate::units::Units;
@@ -47,7 +47,7 @@ pub fn operators() -> HashMap<&'static str, Operator, RandomState> {
     );
     functions!(
         //
-        "*" => !,
+        "*" => multiply,
         "note" => note,
         "oscillator" => oscillator,
         "sawtooth" => !,
@@ -60,7 +60,6 @@ pub fn operators() -> HashMap<&'static str, Operator, RandomState> {
         "lowPass4" => !,
         "saturate" => !,
         "rectify" => !,
-        "multiply" => !,
         "frequency" => !,
         "mix" => !,
         "phase-mod" => !,
@@ -123,14 +122,20 @@ fn define<'a>(env: &mut Env<'a>, _pos: Span, args: &'a [SExpr]) -> OpResult {
 // =============================================================================================
 
 /// Wrap a function argument with information about its name and source location.
-fn func_arg(name: &'static str, value: &EvalResult<Value>) -> EvalResult<Value> {
+fn func_argn(name: &'static str, index: usize, value: &EvalResult<Value>) -> EvalResult<Value> {
     match value {
         EvalResult(label, value) => {
             let mut label = *label;
             label.name = Some(name);
+            label.index = index;
             EvalResult(label, *value)
         }
     }
+}
+
+/// Wrap a function argument with information about its name and source location.
+fn func_arg(name: &'static str, value: &EvalResult<Value>) -> EvalResult<Value> {
+    func_argn(name, 0, value)
 }
 
 macro_rules! count_args {
@@ -159,6 +164,10 @@ macro_rules! parse_args {
     };
 }
 
+fn new_node(env: &mut Env, pos: Span, units: Units, node: impl Node) -> OpResult {
+    Ok(Value(Data::Signal(env.new_node(pos, node)), units))
+}
+
 // =============================================================================================
 // Parameters
 // =============================================================================================
@@ -169,7 +178,7 @@ fn note(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
         .into_int()
         .and_then(|i| i32::try_from(i).map_err(|_| unimplemented!()))
         .unwrap(env);
-    Ok(env.new_node(pos, Units::hertz(1), ops::Note { offset: offset? }))
+    new_node(env, pos, Units::hertz(1), ops::Note { offset: offset? })
 }
 
 // =============================================================================================
@@ -179,13 +188,14 @@ fn note(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
 fn oscillator(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
     parse_args!(args, frequency);
     let frequency = frequency.into_signal(Units::hertz(1)).unwrap(env);
-    Ok(env.new_node(
+    new_node(
+        env,
         pos,
         Units::radian(1),
         ops::Oscillator {
             inputs: [frequency?],
         },
-    ))
+    )
 }
 
 // sawtooth
@@ -193,7 +203,7 @@ fn oscillator(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult 
 fn sine(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
     parse_args!(args, phase);
     let phase = phase.into_signal(Units::radian(1)).unwrap(env);
-    Ok(env.new_node(pos, Units::volt(1), ops::Sine { inputs: [phase?] }))
+    new_node(env, pos, Units::volt(1), ops::Sine { inputs: [phase?] })
 }
 
 // noise
@@ -206,14 +216,15 @@ fn high_pass(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
     parse_args!(args, frequency, input);
     let frequency = frequency.into_float(Units::hertz(1)).unwrap(env);
     let input = input.into_signal(Units::volt(1)).unwrap(env);
-    Ok(env.new_node(
+    new_node(
+        env,
         pos,
         Units::volt(1),
         ops::HighPass {
             inputs: [input?],
             frequency: frequency?,
         },
-    ))
+    )
 }
 
 // low_pass_2
@@ -232,8 +243,43 @@ fn high_pass(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
 // Utilities
 // =============================================================================================
 
-// multiply
-// frequency
+fn multiply(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
+    let (first, rest) = match args.split_first() {
+        Some(x) => x,
+        None => {
+            return Err(OpError::BadNArgs {
+                got: args.len(),
+                min: 1,
+                max: None,
+            });
+        }
+    };
+    let mut product = func_argn("arg", 1, first).into_any_signal().unwrap(env);
+    for (n, arg) in rest.iter().enumerate() {
+        let arg = func_argn("arg", n + 2, arg).into_any_signal().unwrap(env);
+        product = match (product, arg) {
+            (Ok((xsig, xunits)), Ok((ysig, yunits))) => match xunits.multiply(&yunits) {
+                Err(e) => error!(
+                    env,
+                    pos, "could not multiply {} by {}: {}", xunits, yunits, e
+                ),
+                Ok(units) => {
+                    let sig = env.new_node(
+                        pos,
+                        ops::Multiply {
+                            inputs: [xsig, ysig],
+                        },
+                    );
+                    Ok((sig, units))
+                }
+            },
+            _ => Err(Failed),
+        };
+    }
+    let (sig, units) = product?;
+    Ok(Value(Data::Signal(sig), units))
+}
+
 // mix
 // phase_mod
 
@@ -244,12 +290,13 @@ fn overtone(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
         .and_then(|i| i32::try_from(i).map_err(|_| unimplemented!()))
         .unwrap(env);
     let phase = phase.into_signal(Units::radian(1)).unwrap(env);
-    Ok(env.new_node(
+    new_node(
+        env,
         pos,
         Units::radian(1),
         ops::ScaleInt {
             inputs: [phase?],
             scale: overtone?,
         },
-    ))
+    )
 }

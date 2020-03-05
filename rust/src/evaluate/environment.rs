@@ -92,7 +92,7 @@ impl From<Failed> for OpError {
 
 /// The data within a value, without units.
 #[derive(Debug, Clone, Copy)]
-enum Data {
+pub enum Data {
     Int(i64),
     Float(f64),
     Signal(SignalRef),
@@ -112,7 +112,7 @@ impl Data {
 
 /// A value from evaluating an expression successfully.
 #[derive(Debug, Clone, Copy)]
-pub struct Value(Data, Units);
+pub struct Value(pub Data, pub Units);
 
 impl Value {
     pub fn void() -> Self {
@@ -156,6 +156,13 @@ impl Value {
             Value(Data::Float(num), vunits) if units == vunits => Ok(num),
             Value(Data::Int(num), vunits) if units == vunits => Ok(num as f64),
             val => Err(val.bad_type(Type(DataType::Float, Some(units)))),
+        }
+    }
+
+    fn into_any_signal(self) -> Result<(SignalRef, Units), ValueError> {
+        match self {
+            Value(Data::Signal(sig), units) => Ok((sig, units)),
+            val => Err(val.bad_type(Type(DataType::Signal, None))),
         }
     }
 
@@ -283,6 +290,10 @@ impl EvalResult<Value> {
         self.and_then(|v| v.into_float(units))
     }
 
+    pub fn into_any_signal(self) -> EvalResult<(SignalRef, Units)> {
+        self.and_then(Value::into_any_signal)
+    }
+
     pub fn into_signal(self, units: Units) -> EvalResult<SignalRef> {
         self.and_then(|v| v.into_signal(units))
     }
@@ -407,13 +418,9 @@ impl<'a> Env<'a> {
     }
 
     /// Add a new audio processing node to the graph.
-    pub fn new_node(&mut self, pos: Span, units: Units, node: impl Node) -> Value {
-        self.new_node_box(pos, units, Box::new(node))
-    }
-
-    fn new_node_box(&mut self, _pos: Span, units: Units, node: Box<dyn Node>) -> Value {
-        let sig = self.graph.add(node);
-        Value(Data::Signal(sig), units)
+    pub fn new_node(&mut self, pos: Span, node: impl Node) -> SignalRef {
+        let _ = pos;
+        self.graph.add(Box::new(node))
     }
 
     /// Discard the environment and return the created graph.
