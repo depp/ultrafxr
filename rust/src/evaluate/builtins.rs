@@ -1,5 +1,5 @@
 use super::environment::*;
-use crate::graph::op;
+use crate::graph::ops;
 use crate::sexpr::SExpr;
 use crate::sourcepos::{HasPos, Span};
 use crate::units::Units;
@@ -138,7 +138,7 @@ fn note(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
         .and_then(|i| i32::try_from(i).map_err(|_| unimplemented!()))
         .unwrap(env);
     let offset = offset?;
-    Ok(env.new_node(pos, Units::hertz(1), op::Note { offset }))
+    Ok(env.new_node(pos, Units::hertz(1), ops::Note { offset }))
 }
 
 // =============================================================================================

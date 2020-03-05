@@ -35,7 +35,7 @@ impl Graph {
 #[derive(Debug, Copy, Clone)]
 pub struct SignalRef(u32);
 
-pub mod op {
+pub mod ops {
     use super::{Node, SignalRef};
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
