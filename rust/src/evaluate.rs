@@ -130,10 +130,28 @@ impl Value {
             expect,
         }
     }
-}
 
-/// Result of evaluating a subexpression.
-type EvalResult = Result<Value, Failed>;
+    fn into_void(self) -> Result<(), ValueError> {
+        match self {
+            Value(Data::Void, _) => Ok(()),
+            _ => Err(self.bad_type(Type::void())),
+        }
+    }
+
+    fn into_nonvoid(self) -> Result<Value, ValueError> {
+        match self {
+            Value(Data::Void, _) => Err(self.bad_type(Type(DataType::NonVoid, None))),
+            val => Ok(val),
+        }
+    }
+
+    fn into_node(self, units: Units) -> Result<Node, ValueError> {
+        match self {
+            Value(Data::Node(node), vunits) if vunits == units => Ok(node),
+            _ => Err(self.bad_type(Type(DataType::Node, Some(units)))),
+        }
+    }
+}
 
 /// Result of evaluating function or macro body.
 type OpResult = Result<Value, OpError>;
@@ -174,23 +192,134 @@ impl Display for Type {
     }
 }
 
+/// Identifying information about a value so we can generate better error
+/// messages for it.
+#[derive(Debug, Clone, Copy)]
+struct ValueLabel {
+    pos: Span,
+    name: Option<&'static str>,
+    index: usize,
+}
+
+/// Result of evaluating a subexpression.
+#[derive(Debug, Clone)]
+struct EvalResult<T>(ValueLabel, Result<T, ValueError>);
+
+impl<T> EvalResult<T> {
+    fn and_then<U, F>(self, op: F) -> EvalResult<U>
+    where
+        F: FnOnce(T) -> Result<U, ValueError>,
+    {
+        match self {
+            EvalResult(label, v) => EvalResult(label, v.and_then(op)),
+        }
+    }
+
+    fn unwrap(self, env: &mut Env) -> Result<T, Failed> {
+        let EvalResult(label, value) = self;
+        match value {
+            Ok(value) => Ok(value),
+            Err(ValueError::Failed) => Err(Failed),
+            Err(e) => {
+                let msg = match label.name {
+                    Some(name) => format!("invalid value for {}: {}", name, e),
+                    None => format!("invalid value: {}", e),
+                };
+                env.error(label.pos, msg.as_str());
+                Err(Failed)
+            }
+        }
+    }
+}
+
+impl<T> EvalResult<T>
+where
+    T: Copy,
+{
+    fn value(&self) -> Option<T> {
+        match self {
+            EvalResult(_, Ok(v)) => Some(*v),
+            _ => None,
+        }
+    }
+}
+
+impl<T> HasPos for EvalResult<T> {
+    fn source_pos(&self) -> Span {
+        match self {
+            EvalResult(label, _) => label.pos,
+        }
+    }
+}
+
+impl EvalResult<Value> {
+    fn into_void(self) -> EvalResult<()> {
+        self.and_then(Value::into_void)
+    }
+
+    fn into_nonvoid(self) -> EvalResult<Value> {
+        self.and_then(Value::into_nonvoid)
+    }
+
+    fn into_node(self, units: Units) -> EvalResult<Node> {
+        self.and_then(|v| v.into_node(units))
+    }
+}
+
+impl<'a> EvalResult<&'a SExpr> {
+    fn evaluate(self, env: &mut Env<'a>) -> EvalResult<Value> {
+        let EvalResult(label, value) = self;
+        let value = match value {
+            Ok(form) => match env.evaluate_impl(form) {
+                Ok(v) => Ok(v),
+                Err(Failed) => Err(ValueError::Failed),
+            },
+            Err(e) => Err(e),
+        };
+        EvalResult(label, value)
+    }
+}
+
+/// Wrap a macro argument with information about its name and source location.
+fn macro_arg<'a>(name: &'static str, expr: &'a SExpr) -> EvalResult<&'a SExpr> {
+    let label = ValueLabel {
+        pos: expr.source_pos(),
+        name: Some(name),
+        index: 0,
+    };
+    EvalResult(label, Ok(expr))
+}
+
 #[derive(Clone, Copy)]
 enum Operator {
-    Function(fn(&mut Env, Span, &[(Value, Span)]) -> OpResult),
+    Function(fn(&mut Env, Span, &[EvalResult<Value>]) -> OpResult),
     Macro(for<'a> fn(&mut Env<'a>, Span, &'a [SExpr]) -> OpResult),
 }
 
 struct Env<'a> {
     has_error: bool,
     err_handler: &'a mut dyn ErrorHandler,
-    variables: HashMap<&'a str, EvalResult, RandomState>,
+    variables: HashMap<&'a str, Result<Value, Failed>, RandomState>,
     operators: HashMap<&'a str, Operator, RandomState>,
     #[allow(dead_code)]
     tail_length: Option<f64>,
 }
 
 impl<'a> Env<'a> {
-    fn evaluate(&mut self, expr: &'a SExpr) -> EvalResult {
+    fn evaluate(&mut self, expr: &'a SExpr) -> EvalResult<Value> {
+        let label = ValueLabel {
+            pos: expr.source_pos(),
+            name: None,
+            index: 0,
+        };
+        let value = match self.evaluate_impl(expr) {
+            Ok(value) => Ok(value),
+            Err(Failed) => Err(ValueError::Failed),
+        };
+        EvalResult(label, value)
+    }
+
+    fn evaluate_impl(&mut self, expr: &'a SExpr) -> Result<Value, Failed> {
         let pos = expr.source_pos();
         match &expr.content {
             &Content::Symbol(ref name) => match self.variables.get(name.as_ref()) {
@@ -219,16 +348,9 @@ impl<'a> Env<'a> {
                 };
                 let r = match op {
                     Operator::Function(f) => {
-                        let mut values: Vec<(Value, Span)> = Vec::with_capacity(args.len());
-                        let mut failed = false;
+                        let mut values: Vec<EvalResult<Value>> = Vec::with_capacity(args.len());
                         for arg in args.iter() {
-                            match self.evaluate(arg) {
-                                Err(Failed) => failed = true,
-                                Ok(value) => values.push((value, arg.source_pos())),
-                            }
-                        }
-                        if failed {
-                            return Err(Failed);
+                            values.push(self.evaluate(arg));
                         }
                         f(self, pos, &values)
                     }
@@ -246,40 +368,6 @@ impl<'a> Env<'a> {
     fn error(&mut self, pos: Span, msg: &str) {
         self.has_error = true;
         self.err_handler.handle(pos, msg);
-    }
-
-    /// Unwrap the value for an argument.
-    fn arg<T>(&mut self, name: &str, pos: Span, value: Result<T, ValueError>) -> Result<T, Failed> {
-        match value {
-            Ok(value) => Ok(value),
-            Err(ValueError::Failed) => Err(Failed),
-            Err(e) => error!(self, pos, "invalid value for {}: {}", name, e),
-        }
-    }
-}
-
-/// Convert a result to void.
-fn get_void(r: EvalResult) -> Result<(), ValueError> {
-    match r? {
-        Value(Data::Void, _) => Ok(()),
-        val => Err(val.bad_type(Type::void())),
-    }
-}
-
-/// Get any non-void value.
-fn get_value(r: EvalResult) -> Result<Value, ValueError> {
-    let val = r?;
-    match &val.0 {
-        Data::Void => Err(val.bad_type(Type(DataType::NonVoid, None))),
-        _ => Ok(val),
-    }
-}
-
-/// Convert a result to a node with the given units.
-fn get_node(units: Units, r: EvalResult) -> Result<Node, ValueError> {
-    match r? {
-        Value(Data::Node(node), vunits) if vunits == units => Ok(node),
-        val => Err(val.bad_type(Type(DataType::Node, Some(units)))),
     }
 }
 
@@ -313,27 +401,26 @@ pub fn evaluate_program(err_handler: &mut dyn ErrorHandler, program: &[SExpr]) -
         tail_length: None,
     };
     for form in first.iter() {
-        match get_void(env.evaluate(form)) {
-            Err(ValueError::Failed) => (),
-            Err(e) => {
-                env.error(
-                    form.source_pos(),
-                    format!("bad top-level statement: {}", e).as_ref(),
-                );
-            }
-            _ => (),
+        match env.evaluate(form).into_void() {
+            EvalResult(_, Ok(())) => (),
+            EvalResult(label, Err(e)) => match e {
+                ValueError::Failed => (),
+                _ => env.error(
+                    label.pos,
+                    format!("invalid top-level statement: {}", e).as_ref(),
+                ),
+            },
         }
     }
-    let _node: Node = match get_node(Units::volt(1), env.evaluate(last)) {
-        Err(ValueError::Failed) => return None,
-        Err(e) => {
-            env.error(
-                last.source_pos(),
-                format!("bad program output: {}", e).as_ref(),
-            );
+    let _node: Node = match env.evaluate(last).into_node(Units::volt(1)) {
+        EvalResult(_, Ok(node)) => node,
+        EvalResult(label, Err(e)) => {
+            match e {
+                ValueError::Failed => (),
+                _ => env.error(label.pos, format!("invalid program body: {}", e).as_ref()),
+            }
             return None;
         }
-        Ok(node) => node,
     };
     if env.has_error {
         return None;
@@ -417,7 +504,7 @@ mod ops {
 
     fn define<'a>(env: &mut Env<'a>, _pos: Span, args: &'a [SExpr]) -> OpResult {
         let (name, value) = match args {
-            [name, value] => (name, value),
+            [name, value] => (macro_arg("name", name), macro_arg("value", value)),
             _ => {
                 return Err(OpError::BadNArgs {
                     got: args.len(),
@@ -426,19 +513,25 @@ mod ops {
                 })
             }
         };
-        let namepos = name.source_pos();
-        let valuepos = value.source_pos();
-        let name = env.arg("name", namepos, get_symbol(name));
-        let value = env.evaluate(value);
-        let value = env.arg("value", valuepos, get_value(value));
-        let name: &'a str = name?;
-        if env.variables.contains_key(name) {
-            return error!(
-                env,
-                namepos, "a variable named {:?} is already defined", name
-            );
-        }
+        let mut name = name.and_then(get_symbol);
+        match name.value() {
+            Some(nameval) => {
+                if env.variables.contains_key(nameval) {
+                    name.1 = error!(
+                        env,
+                        name.source_pos(),
+                        "a variable named {:?} is already defined",
+                        nameval
+                    );
+                }
+            }
+            _ => (),
+        };
+        let name = name.unwrap(env);
+        let value = value.evaluate(env).into_nonvoid().unwrap(env);
+        let name = name?;
         env.variables.insert(name, value);
+        value?;
         Ok(Value::void())
     }
 
@@ -446,7 +539,7 @@ mod ops {
 
     macro_rules! unimplemented {
         ($id:ident) => {
-            fn $id(env: &mut Env, pos: Span, _args: &[(Value, Span)]) -> OpResult {
+            fn $id(env: &mut Env, pos: Span, _args: &[EvalResult<Value>]) -> OpResult {
                 error!(env, pos, "function {:?} is unimplemented", stringify!($id))
             }
         };
