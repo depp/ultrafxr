@@ -177,11 +177,18 @@ impl fmt::Display for Units {
             f: &mut fmt::Formatter<'_>,
             has_text: &mut bool,
             name: &'static str,
+            invname: &'static str,
             value: i8,
         ) -> fmt::Result {
+            let value = value as i32;
             if value == 0 {
                 Ok(())
             } else {
+                let (name, value) = if value < 0 && !invname.is_empty() {
+                    (invname, -value)
+                } else {
+                    (name, value)
+                };
                 if *has_text {
                     f.write_str("*")?;
                 }
@@ -195,10 +202,10 @@ impl fmt::Display for Units {
             }
         }
         let mut has_text = false;
-        write_unit(f, &mut has_text, "V", self.volt)?;
-        write_unit(f, &mut has_text, "s", self.second)?;
-        write_unit(f, &mut has_text, "rad", self.radian)?;
-        write_unit(f, &mut has_text, "dB", self.decibel)?;
+        write_unit(f, &mut has_text, "V", "", self.volt)?;
+        write_unit(f, &mut has_text, "s", "Hz", self.second)?;
+        write_unit(f, &mut has_text, "rad", "", self.radian)?;
+        write_unit(f, &mut has_text, "dB", "", self.decibel)?;
         if !has_text {
             f.write_str("scalar")?;
         }
@@ -216,6 +223,7 @@ mod test {
         assert_eq!(Units::default().to_string(), "scalar");
         assert_eq!(Units::volt(1).to_string(), "V");
         assert_eq!(Units::second(1).to_string(), "s");
+        assert_eq!(Units::second(-1).to_string(), "Hz");
         assert_eq!(Units::radian(1).to_string(), "rad");
         assert_eq!(Units::decibel(1).to_string(), "dB");
         assert_eq!(
