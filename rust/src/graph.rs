@@ -53,6 +53,15 @@ pub mod ops {
     }
 
     macro_rules! op {
+        ($name:ident, [], []) => {
+            #[derive(Debug)]
+            pub struct $name;
+            impl Node for $name {
+                fn inputs(&self) -> &[SignalRef] {
+                    &[]
+                }
+            }
+        };
         ($name:ident, [], [$($pname:ident: $ptype:ty),*]) => {
             #[derive(Debug)]
             pub struct $name {

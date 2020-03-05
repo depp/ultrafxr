@@ -35,6 +35,7 @@ pub enum ValueError {
     Failed,
     BadType { got: Type, expect: Type },
     BadEType { got: EType, expect: EType },
+    BadGain { got: Type },
 }
 
 impl Display for ValueError {
@@ -44,6 +45,7 @@ impl Display for ValueError {
             Failed => write!(f, "evaluation failed"),
             BadType { got, expect } => write!(f, "type is {}, expected {}", got, expect),
             BadEType { got, expect } => write!(f, "type is {}, expected {}", got, expect),
+            BadGain { got } => write!(f, "type is {}, expected gain (dB or scalar constant)", got),
         }
     }
 }
@@ -114,6 +116,11 @@ impl Data {
 #[derive(Debug, Clone, Copy)]
 pub struct Value(pub Data, pub Units);
 
+/// Convert from decibels to a scalar ratio.
+fn db_to_ratio(db: f64) -> f64 {
+    (db * (10.0f64.ln() / 20.0)).exp()
+}
+
 impl Value {
     pub fn void() -> Self {
         Value(Data::Void, Units::scalar())
@@ -156,6 +163,24 @@ impl Value {
             Value(Data::Float(num), vunits) if units == vunits => Ok(num),
             Value(Data::Int(num), vunits) if units == vunits => Ok(num as f64),
             val => Err(val.bad_type(Type(DataType::Float, Some(units)))),
+        }
+    }
+
+    fn into_gain(self) -> Result<f64, ValueError> {
+        let err = ValueError::BadGain {
+            got: self.get_type(),
+        };
+        let (num, units) = match self {
+            Value(Data::Float(num), units) => (num, units),
+            Value(Data::Int(num), units) => (num as f64, units),
+            _ => return Err(err),
+        };
+        if units == Units::decibel(1) {
+            Ok(db_to_ratio(num))
+        } else if units == Units::scalar() {
+            Ok(num)
+        } else {
+            Err(err)
         }
     }
 
@@ -288,6 +313,10 @@ impl EvalResult<Value> {
 
     pub fn into_float(self, units: Units) -> EvalResult<f64> {
         self.and_then(|v| v.into_float(units))
+    }
+
+    pub fn into_gain(self) -> EvalResult<f64> {
+        self.and_then(Value::into_gain)
     }
 
     pub fn into_any_signal(self) -> EvalResult<(SignalRef, Units)> {

@@ -1,5 +1,5 @@
 use super::environment::*;
-use crate::graph::{ops, Node};
+use crate::graph::{ops, Node, SignalRef};
 use crate::sexpr::SExpr;
 use crate::sourcepos::{HasPos, Span};
 use crate::units::Units;
@@ -61,8 +61,8 @@ pub fn operators() -> HashMap<&'static str, Operator, RandomState> {
         "saturate" => !,
         "rectify" => !,
         "frequency" => !,
-        "mix" => !,
-        "phase-mod" => !,
+        "mix" => mix,
+        "phase-mod" => phase_mod,
         "overtone" => overtone,
     );
     map
@@ -280,8 +280,65 @@ fn multiply(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
     Ok(Value(Data::Signal(sig), units))
 }
 
-// mix
-// phase_mod
+fn mix(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
+    if args.len() & 1 != 0 {
+        return error!(
+            env,
+            pos,
+            "got {} arguments, expected an even number",
+            args.len()
+        );
+    }
+    let mut output: Result<SignalRef, Failed> = Ok(env.new_node(pos, ops::Zero));
+    for (n, chunk) in args.chunks_exact(2).enumerate() {
+        let gain = func_argn("gain", n + 1, &chunk[0]).into_gain().unwrap(env);
+        let signal = func_argn("signal", n + 1, &chunk[1])
+            .into_signal(Units::volt(1))
+            .unwrap(env);
+        output = match (output, gain, signal) {
+            (Ok(xsig), Ok(gain), Ok(ysig)) => Ok(env.new_node(
+                pos,
+                ops::Mix {
+                    inputs: [xsig, ysig],
+                    gain,
+                },
+            )),
+            _ => Err(Failed),
+        };
+    }
+    Ok(Value(Data::Signal(output?), Units::volt(1)))
+}
+
+fn phase_mod(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
+    if args.len() & 1 != 1 {
+        return error!(
+            env,
+            pos,
+            "got {} arguments, expected an odd number",
+            args.len()
+        );
+    }
+    let mut output = func_arg("carrier", &args[0])
+        .into_signal(Units::radian(1))
+        .unwrap(env);
+    for (n, chunk) in args[1..].chunks_exact(2).enumerate() {
+        let gain = func_argn("gain", n + 1, &chunk[0]).into_gain().unwrap(env);
+        let modulator = func_argn("modulator", n + 1, &chunk[1])
+            .into_signal(Units::volt(1))
+            .unwrap(env);
+        output = match (output, gain, modulator) {
+            (Ok(xsig), Ok(gain), Ok(ysig)) => Ok(env.new_node(
+                pos,
+                ops::Mix {
+                    inputs: [xsig, ysig],
+                    gain,
+                },
+            )),
+            _ => Err(Failed),
+        };
+    }
+    Ok(Value(Data::Signal(output?), Units::volt(1)))
+}
 
 fn overtone(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
     parse_args!(args, overtone, phase);
