@@ -1,6 +1,6 @@
 use crate::error::ErrorHandler;
-use crate::graph::{Graph, SignalRef};
 use crate::sexpr::SExpr;
+use crate::signal::graph::{Graph, SignalRef};
 use crate::sourcepos::Span;
 use crate::units::Units;
 

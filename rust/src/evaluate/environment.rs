@@ -1,6 +1,6 @@
 use crate::error::ErrorHandler;
-use crate::graph::{Graph, Node, SignalRef};
 use crate::sexpr::{Content, SExpr, Type as EType};
+use crate::signal::graph::{Graph, Node, SignalRef};
 use crate::sourcepos::{HasPos, Span};
 use crate::units::Units;
 use std::collections::hash_map::{HashMap, RandomState};

@@ -1,7 +1,8 @@
 use super::envelope::envelope;
 use super::environment::*;
-use crate::graph::{ops, Node, SignalRef};
 use crate::sexpr::SExpr;
+use crate::signal::graph::{Node, SignalRef};
+use crate::signal::ops;
 use crate::sourcepos::{HasPos, Span};
 use crate::units::Units;
 use std::collections::hash_map::{HashMap, RandomState};

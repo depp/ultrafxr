@@ -1,6 +1,6 @@
 use super::environment::*;
-use crate::graph::ops::{Envelope, EnvelopeSegment};
 use crate::sexpr::{Content, SExpr};
+use crate::signal::ops::{Envelope, EnvelopeSegment};
 use crate::sourcepos::{HasPos, Span};
 use crate::units::Units;
 
