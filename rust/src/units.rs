@@ -109,8 +109,8 @@ impl Units {
     pub fn multiply(&self, other: &Units) -> Result<Self, UnitError> {
         let (volt, o1) = self.volt.overflowing_add(other.volt);
         let (second, o2) = self.second.overflowing_add(other.second);
-        let (radian, o3) = self.volt.overflowing_add(other.radian);
-        let (decibel, o4) = self.volt.overflowing_add(other.decibel);
+        let (radian, o3) = self.radian.overflowing_add(other.radian);
+        let (decibel, o4) = self.decibel.overflowing_add(other.decibel);
         if o1 || o2 || o3 || o4 {
             Err(UnitError::Overflow)
         } else {
@@ -314,5 +314,28 @@ mod test {
             eprintln!();
             panic!("failed");
         }
+    }
+
+    #[test]
+    fn multiply() {
+        let x = Units {
+            volt: 1,
+            second: 2,
+            radian: 3,
+            decibel: 4,
+        };
+        let y = Units {
+            volt: 10,
+            second: 20,
+            radian: 30,
+            decibel: 40,
+        };
+        let z = Units {
+            volt: 11,
+            second: 22,
+            radian: 33,
+            decibel: 44,
+        };
+        assert_eq!(x.multiply(&y), Ok(z));
     }
 }
