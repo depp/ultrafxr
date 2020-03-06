@@ -114,16 +114,25 @@ pub mod ops {
     op!(Saturate, [input]);
     op!(Rectify, [input]);
 
-    /*
     // Envelopes
-    op!(env_start, 0, 0, 0);
-    op!(env_end, 0, 0, 1);
-    op!(env_set, 1, 0, 0);
-    op!(env_lin, 2, 0, 0);
-    op!(env_exp, 2, 0, 0);
-    op!(env_delay, 1, 0, 0);
-    op!(env_gate, 0, 0, 0);
-     */
+    #[derive(Debug, Clone, Copy)]
+    pub enum EnvelopeSegment {
+        Set(f64),
+        Lin(f64, f64),
+        Exp(f64, f64),
+        Delay(f64),
+        Gate,
+        Stop,
+    }
+
+    #[derive(Debug)]
+    pub struct Envelope(pub Box<[EnvelopeSegment]>);
+
+    impl Node for Envelope {
+        fn inputs(&self) -> &[SignalRef] {
+            &[]
+        }
+    }
 
     // Utilities
     op!(Multiply, [x, y]);

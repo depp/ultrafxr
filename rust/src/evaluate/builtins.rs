@@ -1,3 +1,4 @@
+use super::envelope::envelope;
 use super::environment::*;
 use crate::graph::{ops, Node, SignalRef};
 use crate::sexpr::SExpr;
@@ -33,7 +34,7 @@ pub fn operators() -> HashMap<&'static str, Operator, RandomState> {
     operators!(
         Macro,
         "define" => define,
-        "envelope" => !,
+        "envelope" => envelope,
     );
     operators!(
         Function,
@@ -105,54 +106,9 @@ fn define<'a>(env: &mut Env<'a>, _pos: Span, args: &'a [SExpr]) -> OpResult {
     Ok(Value::void())
 }
 
-// envelope
-
 // =============================================================================================
 // Functions
 // =============================================================================================
-
-/// Wrap a function argument with information about its name and source location.
-fn func_argn(name: &'static str, index: usize, value: &EvalResult<Value>) -> EvalResult<Value> {
-    match value {
-        EvalResult(label, value) => {
-            let mut label = *label;
-            label.name = Some(name);
-            label.index = index;
-            EvalResult(label, *value)
-        }
-    }
-}
-
-/// Wrap a function argument with information about its name and source location.
-fn func_arg(name: &'static str, value: &EvalResult<Value>) -> EvalResult<Value> {
-    func_argn(name, 0, value)
-}
-
-macro_rules! count_args {
-    () => (0usize);
-    ($head:ident $($tail:ident)*) => (1usize + count_args!($($tail)*));
-}
-
-macro_rules! parse_args {
-    ($args:ident, $($name:ident),*) => {
-        // TODO: remove the _ in pattern once
-        // https://github.com/rust-lang/rust/issues/66295 is fixed in stable.
-        let (_, $($name),*) = match $args {
-            [$($name),*] => ((), $(func_arg(stringify!($name), $name)),*),
-            _ => {
-                let n = count_args!($($name)*);
-                return Err(OpError::BadNArgs {
-                    got: $args.len(),
-                    min: n,
-                    max: Some(n),
-                });
-            }
-        };
-    };
-    ($args:ident, $($name:ident),*,) => {
-        parse_args!($args, $($name),*)
-    };
-}
 
 fn new_node(env: &mut Env, pos: Span, units: Units, node: impl Node) -> OpResult {
     Ok(Value(Data::Signal(env.new_node(pos, node)), units))

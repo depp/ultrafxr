@@ -8,6 +8,7 @@ use crate::units::Units;
 mod environment;
 
 mod builtins;
+mod envelope;
 
 use environment::*;
 
