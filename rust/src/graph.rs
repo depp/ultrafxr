@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 use std::fmt::Debug;
+use std::io;
 
 /// A node in the audio processing graph.
 pub trait Node: Debug + 'static {
@@ -28,6 +29,13 @@ impl Graph {
         let idx = u32::try_from(self.nodes.len()).unwrap();
         self.nodes.push(node);
         SignalRef(idx)
+    }
+
+    /// Dump the graph to a stream in text format.
+    pub fn dump(&self, f: &mut dyn io::Write) {
+        for (n, node) in self.nodes.iter().enumerate() {
+            writeln!(f, "{}: {:?}", n, node).unwrap();
+        }
     }
 }
 

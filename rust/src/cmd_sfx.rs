@@ -7,8 +7,27 @@ use crate::token::Tokenizer;
 use std::env;
 use std::error::Error;
 use std::ffi::OsString;
+use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::fs::File;
-use std::io::Read;
+use std::io::{stdout, Read, Write};
+
+#[derive(Debug, Copy, Clone)]
+enum CError {
+    ParseFailed,
+    EvalFailed,
+}
+
+impl Display for CError {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        use CError::*;
+        f.write_str(match self {
+            ParseFailed => "parsing failed",
+            EvalFailed => "evaluation failed",
+        })
+    }
+}
+
+impl Error for CError {}
 
 #[derive(Debug, Clone)]
 pub struct Command {
@@ -137,7 +156,7 @@ impl Command {
                         parser.finish(&mut err_handler);
                         break;
                     }
-                    ParseResult::Error => break,
+                    ParseResult::Error => return Err(Box::new(CError::ParseFailed)),
                     ParseResult::Value(expr) => {
                         if self.verbose {
                             eprintln!("Expression: {}", expr.print());
@@ -148,7 +167,13 @@ impl Command {
             }
             exprs
         };
-        evaluate_program(&mut err_handler, exprs.as_ref());
+        let (graph, root) = match evaluate_program(&mut err_handler, exprs.as_ref()) {
+            Some(r) => r,
+            None => return Err(Box::new(CError::EvalFailed)),
+        };
+        let mut stdout = stdout();
+        graph.dump(&mut stdout);
+        writeln!(&mut stdout, "root = {:?}", root).unwrap();
         Ok(())
     }
 }
