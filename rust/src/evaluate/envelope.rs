@@ -26,6 +26,7 @@ fn evaluate<'a>(env: &mut Env<'a>, expr: &'a SExpr) -> Result<EnvelopeSegment, F
             for arg in args.iter() {
                 values.push(env.evaluate(arg));
             }
+            let oppos = op.source_pos();
             let op: Definition = match name {
                 "set" => set,
                 "lin" => lin,
@@ -38,7 +39,7 @@ fn evaluate<'a>(env: &mut Env<'a>, expr: &'a SExpr) -> Result<EnvelopeSegment, F
             match op(env, &values) {
                 Ok(val) => Ok(val),
                 Err(OpError::Failed) => Err(Failed),
-                Err(e) => error!(env, pos, "invalid segment {}: {}", name, e),
+                Err(e) => error!(env, oppos, "invalid segment {}: {}", name, e),
             }
         }
     }

@@ -434,7 +434,7 @@ impl<'a> Env<'a> {
                 match r {
                     Ok(val) => Ok(val),
                     Err(OpError::Failed) => Err(Failed),
-                    Err(e) => error!(self, pos, "invalid call to {:?}: {}", name, e),
+                    Err(e) => error!(self, oppos, "invalid call to {}: {}", name, e),
                 }
             }
         }
