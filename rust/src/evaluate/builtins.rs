@@ -283,7 +283,7 @@ fn phase_mod(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
             _ => Err(Failed),
         };
     }
-    Ok(Value(Data::Signal(output?), Units::volt(1)))
+    Ok(Value(Data::Signal(output?), Units::radian(1)))
 }
 
 fn overtone(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
