@@ -40,6 +40,8 @@ pub struct Command {
     pub disassemble: bool,
     pub do_loop: bool,
     pub verbose: bool,
+    pub dump_syntax: bool,
+    pub dump_graph: bool,
 }
 
 fn parse_notes(arg: &str) -> Option<Vec<Note>> {
@@ -61,6 +63,8 @@ impl Command {
         let mut disassemble = false;
         let mut do_loop = false;
         let mut verbose = false;
+        let mut dump_syntax = false;
+        let mut dump_graph = false;
         let mut args = Args::from_args(args);
         loop {
             args = match args.next()? {
@@ -108,6 +112,14 @@ impl Command {
                         verbose = true;
                         option.no_value()?.1
                     }
+                    "dump-syntax" => {
+                        dump_syntax = true;
+                        option.no_value()?.1
+                    }
+                    "dump-graph" => {
+                        dump_graph = true;
+                        option.no_value()?.1
+                    }
                     _ => return Err(option.unknown()),
                 },
             };
@@ -130,6 +142,8 @@ impl Command {
             disassemble,
             do_loop,
             verbose,
+            dump_syntax,
+            dump_graph,
         })
     }
 
@@ -158,8 +172,8 @@ impl Command {
                     }
                     ParseResult::Error => return Err(Box::new(CError::ParseFailed)),
                     ParseResult::Value(expr) => {
-                        if self.verbose {
-                            eprintln!("Expression: {}", expr.print());
+                        if self.dump_syntax {
+                            eprintln!("Syntax: {}", expr.print());
                         }
                         exprs.push(expr);
                     }
@@ -171,9 +185,11 @@ impl Command {
             Some(r) => r,
             None => return Err(Box::new(CError::EvalFailed)),
         };
-        let mut stdout = stdout();
-        graph.dump(&mut stdout);
-        writeln!(&mut stdout, "root = {:?}", root).unwrap();
+        if self.dump_graph {
+            let mut stdout = stdout();
+            graph.dump(&mut stdout);
+            writeln!(&mut stdout, "root = {:?}", root).unwrap();
+        }
         Ok(())
     }
 }
