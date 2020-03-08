@@ -34,7 +34,6 @@ use std::env;
 use std::process;
 
 fn main() {
-    warning!("This is a warning: {}", 123);
     let mut args = env::args_os();
     // Discard program name.
     args.next();
