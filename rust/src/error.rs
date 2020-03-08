@@ -22,3 +22,7 @@ impl fmt::Display for Severity {
         })
     }
 }
+
+/// Error marker for errors that have already been reported.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Failed;

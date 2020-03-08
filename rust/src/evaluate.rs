@@ -1,4 +1,4 @@
-use crate::error::ErrorHandler;
+use crate::error::{ErrorHandler, Failed};
 use crate::sexpr::SExpr;
 use crate::signal::graph::{Graph, SignalRef};
 use crate::sourcepos::Span;
@@ -16,13 +16,13 @@ use environment::*;
 pub fn evaluate_program(
     err_handler: &mut dyn ErrorHandler,
     program: &[SExpr],
-) -> Option<(Graph, SignalRef)> {
+) -> Result<(Graph, SignalRef), Failed> {
     // Break program into the leading forms and the last form. The last form is
     // considered to be the output, and must produce a value.
     let (last, first) = match program.split_last() {
         None => {
             err_handler.handle(Span::none(), "empty program");
-            return None;
+            return Err(Failed);
         }
         Some(x) => x,
     };
@@ -43,7 +43,7 @@ pub fn evaluate_program(
                 ValueError::Failed => (),
                 _ => log_error!(env, label.pos, "invalid program body: {}", e),
             }
-            return None;
+            return Err(Failed);
         }
     };
     env.into_graph().map(|g| (g, signal))

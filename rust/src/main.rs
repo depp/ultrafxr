@@ -29,6 +29,7 @@ mod rand;
 #[cfg(test)]
 mod test;
 
+use crate::error::Failed;
 use std::env;
 use std::process;
 
@@ -46,9 +47,6 @@ fn main() {
     };
     match cmd.run() {
         Ok(_) => (),
-        Err(e) => {
-            error!("{}", e);
-            process::exit(1);
-        }
+        Err(Failed) => process::exit(1),
     }
 }

@@ -7,9 +7,7 @@ use std::collections::hash_map::{HashMap, RandomState};
 use std::convert::From;
 use std::fmt::{Display, Formatter, Result as FResult};
 
-/// Error for evaluation failure. The error diagnostics are reported elsewhere.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Failed;
+pub use crate::error::Failed;
 
 /// Log an error, returning void.
 macro_rules! log_error {
@@ -25,7 +23,7 @@ macro_rules! log_error {
 macro_rules! error {
     ($env:expr, $loc:expr, $($tts:expr),*) => {{
         log_error!($env, $loc, $($tts),*);
-        Err(From::from($crate::evaluate::environment::Failed))
+        Err(From::from($crate::error::Failed))
     }};
 }
 
@@ -453,11 +451,11 @@ impl<'a> Env<'a> {
     }
 
     /// Discard the environment and return the created graph.
-    pub fn into_graph(self) -> Option<Graph> {
+    pub fn into_graph(self) -> Result<Graph, Failed> {
         if self.has_error {
-            None
+            Err(Failed)
         } else {
-            Some(self.graph)
+            Ok(self.graph)
         }
     }
 }

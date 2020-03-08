@@ -1,4 +1,5 @@
 use crate::consolelogger::ConsoleLogger;
+use crate::error::Failed;
 use crate::evaluate::evaluate_program;
 use crate::note::Note;
 use crate::parseargs::{Arg, Args, UsageError};
@@ -6,31 +7,11 @@ use crate::parser::{ParseResult, Parser};
 use crate::token::Tokenizer;
 use crate::wave;
 use std::env;
-use std::error::Error as EError;
 use std::f32;
 use std::ffi::{OsStr, OsString};
-use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::fs::File;
-use std::io::{stdout, Read, Write};
-use std::path::PathBuf;
-
-#[derive(Debug, Copy, Clone)]
-enum Error {
-    ParseFailed,
-    EvalFailed,
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter) -> FmtResult {
-        use Error::*;
-        f.write_str(match self {
-            ParseFailed => "parsing failed",
-            EvalFailed => "evaluation failed",
-        })
-    }
-}
-
-impl EError for Error {}
+use std::io::{stdout, Error as IOError, Read, Write};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct Command {
@@ -53,6 +34,16 @@ fn parse_notes(arg: &str) -> Option<Vec<Note>> {
         result.push(s.parse::<Note>().ok()?);
     }
     Some(result)
+}
+
+fn unwrap_write<T>(path: &Path, result: Result<T, IOError>) -> Result<T, Failed> {
+    match result {
+        Ok(x) => Ok(x),
+        Err(e) => {
+            error!("could not write {}: {}", path.to_string_lossy(), e);
+            Err(Failed)
+        }
+    }
 }
 
 impl Command {
@@ -150,21 +141,28 @@ impl Command {
         })
     }
 
-    pub fn run(&self) -> Result<(), Box<dyn EError>> {
+    pub fn run(&self) -> Result<(), Failed> {
         let filename = match self.input.to_str() {
             Some(s) => s.to_string(),
             None => format!("{:?}", self.input),
         };
-        let text = {
-            let mut text = Vec::new();
-            let mut file = File::open(&self.input)?;
-            file.read_to_end(&mut text)?;
-            text
+        let text = match self.read_input() {
+            Ok(text) => text,
+            Err(e) => {
+                error!("could not read {}: {}", filename, e);
+                return Err(Failed);
+            }
         };
         let mut err_handler = ConsoleLogger::from_text(filename.as_ref(), text.as_ref());
         let exprs = {
             let mut exprs = Vec::new();
-            let mut toks = Tokenizer::new(text.as_ref())?;
+            let mut toks = match Tokenizer::new(text.as_ref()) {
+                Ok(toks) => toks,
+                Err(e) => {
+                    error!("could not parse {}: {}", filename, e);
+                    return Err(Failed);
+                }
+            };
             let mut parser = Parser::new();
             loop {
                 match parser.parse(&mut err_handler, &mut toks) {
@@ -173,7 +171,7 @@ impl Command {
                         parser.finish(&mut err_handler);
                         break;
                     }
-                    ParseResult::Error => return Err(Box::new(Error::ParseFailed)),
+                    ParseResult::Error => return Err(Failed),
                     ParseResult::Value(expr) => {
                         if self.dump_syntax {
                             eprintln!("Syntax: {}", expr.print());
@@ -184,10 +182,7 @@ impl Command {
             }
             exprs
         };
-        let (graph, root) = match evaluate_program(&mut err_handler, exprs.as_ref()) {
-            Some(r) => r,
-            None => return Err(Box::new(Error::EvalFailed)),
-        };
+        let (graph, root) = evaluate_program(&mut err_handler, exprs.as_ref())?;
         if self.dump_graph {
             let mut stdout = stdout();
             graph.dump(&mut stdout);
@@ -199,7 +194,13 @@ impl Command {
                 panic!("refusing to overwrite input file");
             }
             path.set_extension("wav");
-            let mut file = File::create(path)?;
+            let mut file = match File::create(&path) {
+                Ok(file) => file,
+                Err(e) => {
+                    error!("could not create {}: {}", path.to_string_lossy(), e);
+                    return Err(Failed);
+                }
+            };
             let mut writer = wave::Writer::from_stream(
                 &mut file,
                 &wave::Parameters {
@@ -212,10 +213,18 @@ impl Command {
             for i in 0..48000 {
                 buf.push(((i as f32) * w).sin());
             }
-            writer.write(&buf[..])?;
-            writer.finish()?;
-            file.sync_all()?;
+            unwrap_write(&path, writer.write(&buf[..]))?;
+            unwrap_write(&path, writer.finish())?;
+            unwrap_write(&path, file.sync_all())?;
         }
         Ok(())
+    }
+
+    /// Read the input file and return its contents.
+    fn read_input(&self) -> Result<Box<[u8]>, IOError> {
+        let mut text = Vec::new();
+        let mut file = File::open(&self.input)?;
+        file.read_to_end(&mut text)?;
+        Ok(Box::from(text))
     }
 }
