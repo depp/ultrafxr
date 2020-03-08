@@ -6,7 +6,7 @@ use crate::parser::{ParseResult, Parser};
 use crate::token::Tokenizer;
 use crate::wave;
 use std::env;
-use std::error::Error;
+use std::error::Error as EError;
 use std::f32;
 use std::ffi::{OsStr, OsString};
 use std::fmt::{Display, Formatter, Result as FmtResult};
@@ -15,14 +15,14 @@ use std::io::{stdout, Read, Write};
 use std::path::PathBuf;
 
 #[derive(Debug, Copy, Clone)]
-enum CError {
+enum Error {
     ParseFailed,
     EvalFailed,
 }
 
-impl Display for CError {
+impl Display for Error {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
-        use CError::*;
+        use Error::*;
         f.write_str(match self {
             ParseFailed => "parsing failed",
             EvalFailed => "evaluation failed",
@@ -30,7 +30,7 @@ impl Display for CError {
     }
 }
 
-impl Error for CError {}
+impl EError for Error {}
 
 #[derive(Debug, Clone)]
 pub struct Command {
@@ -150,7 +150,7 @@ impl Command {
         })
     }
 
-    pub fn run(&self) -> Result<(), Box<dyn Error>> {
+    pub fn run(&self) -> Result<(), Box<dyn EError>> {
         let filename = match self.input.to_str() {
             Some(s) => s.to_string(),
             None => format!("{:?}", self.input),
@@ -173,7 +173,7 @@ impl Command {
                         parser.finish(&mut err_handler);
                         break;
                     }
-                    ParseResult::Error => return Err(Box::new(CError::ParseFailed)),
+                    ParseResult::Error => return Err(Box::new(Error::ParseFailed)),
                     ParseResult::Value(expr) => {
                         if self.dump_syntax {
                             eprintln!("Syntax: {}", expr.print());
@@ -186,7 +186,7 @@ impl Command {
         };
         let (graph, root) = match evaluate_program(&mut err_handler, exprs.as_ref()) {
             Some(r) => r,
-            None => return Err(Box::new(CError::EvalFailed)),
+            None => return Err(Box::new(Error::EvalFailed)),
         };
         if self.dump_graph {
             let mut stdout = stdout();
