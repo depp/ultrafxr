@@ -13,12 +13,16 @@ mod sourceprint;
 mod sourcetext;
 mod token;
 mod utf8;
+mod wave;
 
 #[allow(dead_code)]
 mod parseargs;
 
 #[allow(dead_code)]
 mod units;
+
+#[allow(dead_code)]
+mod rand;
 
 #[cfg(test)]
 mod test;

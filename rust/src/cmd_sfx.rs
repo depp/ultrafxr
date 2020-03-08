@@ -4,12 +4,15 @@ use crate::note::Note;
 use crate::parseargs::{Arg, Args, UsageError};
 use crate::parser::{ParseResult, Parser};
 use crate::token::Tokenizer;
+use crate::wave;
 use std::env;
 use std::error::Error;
-use std::ffi::OsString;
+use std::f32;
+use std::ffi::{OsStr, OsString};
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::fs::File;
 use std::io::{stdout, Read, Write};
+use std::path::PathBuf;
 
 #[derive(Debug, Copy, Clone)]
 enum CError {
@@ -189,6 +192,29 @@ impl Command {
             let mut stdout = stdout();
             graph.dump(&mut stdout);
             writeln!(&mut stdout, "root = {:?}", root).unwrap();
+        }
+        if self.write_wav {
+            let mut path = PathBuf::from(self.input.clone());
+            if path.extension() == Some(OsStr::new("wav")) {
+                panic!("refusing to overwrite input file");
+            }
+            path.set_extension("wav");
+            let mut file = File::create(path)?;
+            let mut writer = wave::Writer::from_stream(
+                &mut file,
+                &wave::Parameters {
+                    channel_count: 1,
+                    sample_rate: 48000,
+                },
+            );
+            let mut buf = Vec::new();
+            let w = f32::consts::PI * 440.0 * 1.0 / 48000.0;
+            for i in 0..48000 {
+                buf.push(((i as f32) * w).sin());
+            }
+            writer.write(&buf[..])?;
+            writer.finish()?;
+            file.sync_all()?;
         }
         Ok(())
     }
