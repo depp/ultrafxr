@@ -1,6 +1,8 @@
+#[macro_use]
+mod consolelogger;
+
 mod cmd_sfx;
 mod color;
-mod consolelogger;
 mod error;
 mod evaluate;
 mod note;
@@ -27,28 +29,25 @@ mod rand;
 #[cfg(test)]
 mod test;
 
-use consolelogger::write_diagnostic;
-use error::Severity;
 use std::env;
-use std::io::stderr;
 use std::process;
 
 fn main() {
-    let mut stderr = stderr();
+    warning!("This is a warning: {}", 123);
     let mut args = env::args_os();
     // Discard program name.
     args.next();
     let cmd = match cmd_sfx::Command::from_args(args) {
         Ok(c) => c,
         Err(e) => {
-            write_diagnostic(&mut stderr, Severity::Error, &e).unwrap();
+            error!("{}", e);
             process::exit(64);
         }
     };
     match cmd.run() {
         Ok(_) => (),
         Err(e) => {
-            write_diagnostic(&mut stderr, Severity::Error, &e).unwrap();
+            error!("{}", e);
             process::exit(1);
         }
     }

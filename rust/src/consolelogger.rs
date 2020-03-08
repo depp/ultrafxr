@@ -3,7 +3,7 @@ use crate::error::{ErrorHandler, Severity};
 use crate::sourcepos::Span;
 use crate::sourceprint::write_source;
 use crate::sourcetext::SourceText;
-use std::fmt::Display;
+use std::fmt::Arguments;
 use std::io;
 use std::io::{stderr, Write};
 
@@ -14,31 +14,15 @@ const RESET: Style<'static> = Style(&[StyleFlag::Reset]);
 fn severity_color(severity: Severity) -> Style<'static> {
     use Severity::*;
     Style(match severity {
+        Warning => &[StyleFlag::FgYellow, StyleFlag::Bold],
         Error => &[StyleFlag::FgRed, StyleFlag::Bold],
     })
-}
-
-/// Write a diagnostic message to a stream.
-pub fn write_diagnostic(
-    w: &mut impl Write,
-    severity: Severity,
-    msg: &dyn Display,
-) -> io::Result<()> {
-    writeln!(
-        w,
-        "{}{}{}: {}{}",
-        severity_color(severity),
-        severity,
-        MESSAGE,
-        msg,
-        RESET
-    )
 }
 
 // FIXME: Seems like we could combine these functions, but str is ?Sized.
 
 /// Write a diagnostic message to a stream.
-pub fn write_diagnostic_str(w: &mut impl Write, severity: Severity, msg: &str) -> io::Result<()> {
+pub fn write_diagnostic(w: &mut impl Write, severity: Severity, msg: &str) -> io::Result<()> {
     writeln!(
         w,
         "{}{}{}: {}{}",
@@ -48,6 +32,40 @@ pub fn write_diagnostic_str(w: &mut impl Write, severity: Severity, msg: &str) -
         msg,
         RESET
     )
+}
+
+/// Print a diagnostic message to stderr.
+pub fn _print_diagnostic(severity: Severity, args: Arguments) {
+    let stderr = stderr();
+    let mut handle = stderr.lock();
+    writeln!(
+        &mut handle,
+        "{}{}{}: {}{}",
+        severity_color(severity),
+        severity,
+        MESSAGE,
+        args,
+        RESET,
+    )
+    .unwrap();
+}
+
+macro_rules! error {
+    ($($arg:tt)*) => ({
+        $crate::consolelogger::_print_diagnostic(
+            $crate::error::Severity::Error,
+            std::format_args!($($arg)*),
+        )
+    });
+}
+
+macro_rules! warning {
+    ($($arg:tt)*) => ({
+        $crate::consolelogger::_print_diagnostic(
+            $crate::error::Severity::Warning,
+            std::format_args!($($arg)*),
+        )
+    });
 }
 
 pub struct ConsoleLogger<'a> {
@@ -73,7 +91,7 @@ impl<'a> ErrorHandler for ConsoleLogger<'a> {
         self.init();
         let source_text = self.text.as_ref().unwrap();
         let mut stderr = stderr();
-        write_diagnostic_str(&mut stderr, Severity::Error, message).unwrap();
+        write_diagnostic(&mut stderr, Severity::Error, message).unwrap();
         if let Some(text_pos) = source_text.span(pos) {
             write_source(&mut stderr, &source_text, &text_pos).unwrap();
         }

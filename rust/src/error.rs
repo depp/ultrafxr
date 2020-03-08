@@ -9,6 +9,7 @@ pub trait ErrorHandler {
 /// Serevrity level for diagnostic messages.
 #[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq)]
 pub enum Severity {
+    Warning,
     Error,
 }
 
@@ -16,6 +17,7 @@ impl fmt::Display for Severity {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use Severity::*;
         f.write_str(match *self {
+            Warning => "warning",
             Error => "error",
         })
     }
