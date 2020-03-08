@@ -4,6 +4,7 @@ use crate::evaluate::evaluate_program;
 use crate::note::Note;
 use crate::parseargs::{Arg, Args, UsageError};
 use crate::parser::{ParseResult, Parser};
+use crate::signal::graph::{Graph, SignalRef};
 use crate::token::Tokenizer;
 use crate::wave;
 use std::env;
@@ -16,7 +17,7 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Clone)]
 pub struct Command {
     pub input: OsString,
-    pub write_wav: bool,
+    pub do_write_wave: bool,
     pub play: bool,
     pub notes: Option<Vec<Note>>,
     pub tempo: Option<f32>,
@@ -49,7 +50,7 @@ fn unwrap_write<T>(path: &Path, result: Result<T, IOError>) -> Result<T, Failed>
 impl Command {
     pub fn from_args(args: env::ArgsOs) -> Result<Command, UsageError> {
         let mut input = None;
-        let mut write_wav = false;
+        let mut do_write_wave = false;
         let mut play = false;
         let mut notes = None;
         let mut tempo = None;
@@ -72,7 +73,7 @@ impl Command {
                 }
                 Arg::Named(option) => match option.name() {
                     "write-wav" => {
-                        write_wav = true;
+                        do_write_wave = true;
                         option.no_value()?.1
                     }
                     "play" => {
@@ -128,7 +129,7 @@ impl Command {
         };
         Ok(Command {
             input,
-            write_wav,
+            do_write_wave,
             play,
             notes,
             tempo,
@@ -188,34 +189,8 @@ impl Command {
             graph.dump(&mut stdout);
             writeln!(&mut stdout, "root = {:?}", root).unwrap();
         }
-        if self.write_wav {
-            let mut path = PathBuf::from(self.input.clone());
-            if path.extension() == Some(OsStr::new("wav")) {
-                panic!("refusing to overwrite input file");
-            }
-            path.set_extension("wav");
-            let mut file = match File::create(&path) {
-                Ok(file) => file,
-                Err(e) => {
-                    error!("could not create {}: {}", path.to_string_lossy(), e);
-                    return Err(Failed);
-                }
-            };
-            let mut writer = wave::Writer::from_stream(
-                &mut file,
-                &wave::Parameters {
-                    channel_count: 1,
-                    sample_rate: 48000,
-                },
-            );
-            let mut buf = Vec::new();
-            let w = f32::consts::PI * 440.0 * 1.0 / 48000.0;
-            for i in 0..48000 {
-                buf.push(((i as f32) * w).sin());
-            }
-            unwrap_write(&path, writer.write(&buf[..]))?;
-            unwrap_write(&path, writer.finish())?;
-            unwrap_write(&path, file.sync_all())?;
+        if self.do_write_wave {
+            self.write_wave(&graph, root)?;
         }
         Ok(())
     }
@@ -226,5 +201,40 @@ impl Command {
         let mut file = File::open(&self.input)?;
         file.read_to_end(&mut text)?;
         Ok(Box::from(text))
+    }
+
+    /// Write output wave file.
+    fn write_wave(&self, _graph: &Graph, _signal: SignalRef) -> Result<(), Failed> {
+        let mut path = PathBuf::from(self.input.clone());
+        if path.extension() == Some(OsStr::new("wav")) {
+            error!(
+                "refusing to overwrite input file {}",
+                self.input.to_string_lossy(),
+            );
+            return Err(Failed);
+        }
+        path.set_extension("wav");
+        let mut file = match File::create(&path) {
+            Ok(file) => file,
+            Err(e) => {
+                error!("could not create {}: {}", path.to_string_lossy(), e);
+                return Err(Failed);
+            }
+        };
+        let mut writer = wave::Writer::from_stream(
+            &mut file,
+            &wave::Parameters {
+                channel_count: 1,
+                sample_rate: 48000,
+            },
+        );
+        let mut buf = Vec::new();
+        let w = f32::consts::PI * 440.0 * 1.0 / 48000.0;
+        for i in 0..48000 {
+            buf.push(((i as f32) * w).sin());
+        }
+        unwrap_write(&path, writer.write(&buf[..]))?;
+        unwrap_write(&path, writer.finish())?;
+        unwrap_write(&path, file.sync_all())
     }
 }
