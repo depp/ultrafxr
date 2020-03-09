@@ -42,7 +42,7 @@ pub fn operators() -> HashMap<&'static str, Operator, RandomState> {
         "*" => multiply,
         "note" => note,
         "oscillator" => oscillator,
-        "sawtooth" => !,
+        "sawtooth" => sawtooth,
         "sine" => sine,
         "noise" => !,
         "highPass" => high_pass,
@@ -145,12 +145,31 @@ fn oscillator(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult 
     )
 }
 
-// sawtooth
-
-fn sine(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
+fn waveform(
+    env: &mut Env,
+    pos: Span,
+    args: &[EvalResult<Value>],
+    waveform: ops::Waveform,
+) -> OpResult {
     parse_args!(args, phase);
     let phase = phase.into_signal(Units::radian(1)).unwrap(env);
-    new_node(env, pos, Units::volt(1), ops::Sine { inputs: [phase?] })
+    new_node(
+        env,
+        pos,
+        Units::volt(1),
+        ops::GenWaveform {
+            inputs: [phase?],
+            waveform,
+        },
+    )
+}
+
+fn sine(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
+    waveform(env, pos, args, ops::Waveform::Sine)
+}
+
+fn sawtooth(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
+    waveform(env, pos, args, ops::Waveform::Sawtooth)
 }
 
 // noise

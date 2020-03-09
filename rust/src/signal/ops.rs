@@ -123,6 +123,9 @@ impl Function for OscillatorF {
         for (output, &frequency) in output.iter_mut().zip(frequency.iter()) {
             *output = phase;
             phase += frequency * scale;
+            if phase > 1.0 {
+                phase -= 1.0;
+            }
         }
         self.phase = phase;
     }
@@ -130,29 +133,46 @@ impl Function for OscillatorF {
 
 // =================================================================================================
 
-/// Generate sine waveform from phase.
-#[derive(Debug)]
-pub struct Sine {
-    pub inputs: [SignalRef; 1],
+/// Types of waveforms.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Waveform {
+    Sine,
+    Sawtooth,
 }
 
-impl Node for Sine {
+/// Generate a simple waveform from phase.
+#[derive(Debug)]
+pub struct GenWaveform {
+    pub inputs: [SignalRef; 1],
+    pub waveform: Waveform,
+}
+
+impl Node for GenWaveform {
     fn inputs(&self) -> &[SignalRef] {
         &self.inputs[..]
     }
     fn instantiate(&self, _parameters: &Parameters) -> NodeResult {
-        Ok(Box::from(SineF))
+        Ok(Box::new(GenWaveformF(self.waveform)))
     }
 }
 
 #[derive(Debug)]
-struct SineF;
+struct GenWaveformF(Waveform);
 
-impl Function for SineF {
+impl Function for GenWaveformF {
     fn render(&mut self, output: &mut [f32], inputs: &[&[f32]], _state: &State) {
-        let phase = &inputs[0][0..output.len()];
-        for (output, &phase) in output.iter_mut().zip(phase.iter()) {
-            *output = (phase * (2.0 * f32::consts::PI)).sin();
+        let items = output.iter_mut().zip(inputs[0].iter());
+        match self.0 {
+            Waveform::Sine => {
+                for (output, &phase) in items {
+                    *output = (phase * (2.0 * f32::consts::PI)).sin();
+                }
+            }
+            Waveform::Sawtooth => {
+                for (output, &phase) in items {
+                    *output = phase * 2.0 - 1.0;
+                }
+            }
         }
     }
 }
