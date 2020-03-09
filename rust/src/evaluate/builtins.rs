@@ -111,7 +111,7 @@ fn define<'a>(env: &mut Env<'a>, _pos: Span, args: &'a [SExpr]) -> OpResult {
 // Functions
 // =================================================================================================
 
-fn new_node(env: &mut Env, pos: Span, units: Units, node: impl Node) -> OpResult {
+fn new_node(env: &mut Env, pos: Span, units: Units, node: impl Node + 'static) -> OpResult {
     Ok(Value(Data::Signal(env.new_node(pos, node)), units))
 }
 

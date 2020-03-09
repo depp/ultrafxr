@@ -445,7 +445,7 @@ impl<'a> Env<'a> {
     }
 
     /// Add a new audio processing node to the graph.
-    pub fn new_node(&mut self, pos: Span, node: impl Node) -> SignalRef {
+    pub fn new_node(&mut self, pos: Span, node: impl Node + 'static) -> SignalRef {
         let _ = pos;
         self.graph.add(Box::new(node))
     }

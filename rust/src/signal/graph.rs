@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use std::io;
 
 /// A node in the audio processing graph.
-pub trait Node: Debug + 'static {
+pub trait Node: Debug {
     /// Get a list of node inputs.
     fn inputs(&self) -> &[SignalRef];
 }
