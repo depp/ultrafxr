@@ -13,7 +13,7 @@ use std::f32;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::io::{stdout, Error as IOError, Read, Write};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 const DEFAULT_SAMPLE_RATE: u32 = 48000;
 const MIN_SAMPLE_RATE: u32 = 8000;
@@ -23,9 +23,15 @@ const MIN_BUFFER_SIZE: usize = 32;
 const MAX_BUFFER_SIZE: usize = 8192;
 
 #[derive(Debug, Clone)]
+pub enum Input {
+    File(OsString),
+    String(String),
+}
+
+#[derive(Debug, Clone)]
 pub struct Command {
-    pub input: OsString,
-    pub do_write_wave: bool,
+    pub input: Input,
+    pub wave_file: Option<OsString>,
     pub play: bool,
     pub notes: Option<Vec<Note>>,
     pub tempo: Option<f32>,
@@ -47,11 +53,11 @@ fn parse_notes(arg: &str) -> Option<Vec<Note>> {
     Some(result)
 }
 
-fn unwrap_write<T>(path: &Path, result: Result<T, IOError>) -> Result<T, Failed> {
+fn unwrap_write<T>(filename: &str, result: Result<T, IOError>) -> Result<T, Failed> {
     match result {
         Ok(x) => Ok(x),
         Err(e) => {
-            error!("could not write {}: {}", path.to_string_lossy(), e);
+            error!("could not write {}: {}", filename, e);
             Err(Failed)
         }
     }
@@ -60,7 +66,9 @@ fn unwrap_write<T>(path: &Path, result: Result<T, IOError>) -> Result<T, Failed>
 impl Command {
     pub fn from_args(args: env::ArgsOs) -> Result<Command, UsageError> {
         let mut input = None;
+        let mut script = None;
         let mut do_write_wave = false;
+        let mut wave_file = None;
         let mut play = false;
         let mut notes = None;
         let mut tempo = None;
@@ -87,6 +95,11 @@ impl Command {
                     "write-wav" => {
                         do_write_wave = true;
                         option.no_value()?.1
+                    }
+                    "wav-out" => {
+                        let (_, value, rest) = option.value_osstr()?;
+                        wave_file = Some(value);
+                        rest
                     }
                     "play" => {
                         play = true;
@@ -137,21 +150,49 @@ impl Command {
                         buffer_size = Some(value);
                         rest
                     }
+                    "script" => {
+                        let (_, value, rest) = option.value_str()?;
+                        script = Some(value);
+                        rest
+                    }
                     _ => return Err(option.unknown()),
                 },
             };
         }
-        let input = match input {
-            Some(x) => x,
-            None => {
-                return Err(UsageError::MissingArgument {
-                    name: "file".to_owned(),
-                })
+        let input = match (input, script) {
+            (Some(_), Some(_)) => {
+                return Err(UsageError::Custom {
+                    text: format!("cannot specify both -script and <file>"),
+                });
             }
+            (Some(s), None) => Input::File(s),
+            (None, Some(s)) => Input::String(s),
+            (None, None) => {
+                return Err(UsageError::Custom {
+                    text: format!("no inputs"),
+                });
+            }
+        };
+        let wave_file = match wave_file {
+            Some(s) => Some(s),
+            None if do_write_wave => Some(match &input {
+                Input::File(path) => {
+                    let mut path = PathBuf::from(path.clone());
+                    if path.extension() == Some(OsStr::new("wav")) {
+                        return Err(UsageError::Custom {
+                            text: format!("refusing to overwrite input file {}", quote_os(&path)),
+                        });
+                    }
+                    path.set_extension("wav");
+                    OsString::from(path)
+                }
+                _ => OsString::from("ultrafxr.wav"),
+            }),
+            None => None,
         };
         Ok(Command {
             input,
-            do_write_wave,
+            wave_file,
             play,
             notes,
             tempo,
@@ -167,14 +208,7 @@ impl Command {
     }
 
     pub fn run(&self) -> Result<(), Failed> {
-        let filename = quote_os(&self.input);
-        let text = match self.read_input() {
-            Ok(text) => text,
-            Err(e) => {
-                error!("could not read {}: {}", filename, e);
-                return Err(Failed);
-            }
-        };
+        let (filename, text) = self.read_input()?;
         let mut err_handler = ConsoleLogger::from_text(filename.as_ref(), text.as_ref());
         let exprs = {
             let mut exprs = Vec::new();
@@ -210,22 +244,36 @@ impl Command {
             graph.dump(&mut stdout);
             writeln!(&mut stdout, "root = {:?}", root).unwrap();
         }
-        if self.do_write_wave {
-            self.write_wave(&graph, root)?;
-        }
+        self.write_wave(&graph, root)?;
         Ok(())
     }
 
-    /// Read the input file and return its contents.
-    fn read_input(&self) -> Result<Box<[u8]>, IOError> {
-        let mut text = Vec::new();
-        let mut file = File::open(&self.input)?;
-        file.read_to_end(&mut text)?;
-        Ok(Box::from(text))
+    /// Read the input file and return its name and its contents.
+    fn read_input(&self) -> Result<(String, Box<[u8]>), Failed> {
+        match self.input {
+            Input::File(ref path) => {
+                let filename = quote_os(path);
+                let mut text = Vec::new();
+                match File::open(path).and_then(|mut f| f.read_to_end(&mut text)) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        error!("could not read {}: {}", filename, e);
+                        return Err(Failed);
+                    }
+                }
+                Ok((filename, Box::from(text)))
+            }
+            Input::String(ref s) => Ok(("<arg>".to_string(), Box::from(s.as_bytes()))),
+        }
     }
 
     /// Write output wave file.
     fn write_wave(&self, _graph: &Graph, _signal: SignalRef) -> Result<(), Failed> {
+        let path = match &self.wave_file {
+            Some(path) => path,
+            None => return Ok(()),
+        };
+        let filename = quote_os(path);
         let sample_rate = match self.sample_rate {
             Some(rate) => {
                 if rate < MIN_SAMPLE_RATE {
@@ -272,13 +320,6 @@ impl Command {
             }
             None => DEFAULT_BUFFER_SIZE,
         };
-        let mut path = PathBuf::from(self.input.clone());
-        let filename = quote_os(&path);
-        if path.extension() == Some(OsStr::new("wav")) {
-            error!("refusing to overwrite input file {}", filename);
-            return Err(Failed);
-        }
-        path.set_extension("wav");
         let mut file = match File::create(&path) {
             Ok(file) => file,
             Err(e) => {
@@ -298,8 +339,8 @@ impl Command {
         for i in 0..48000 {
             buf.push(((i as f32) * w).sin());
         }
-        unwrap_write(&path, writer.write(&buf[..]))?;
-        unwrap_write(&path, writer.finish())?;
-        unwrap_write(&path, file.sync_all())
+        unwrap_write(&filename, writer.write(&buf[..]))?;
+        unwrap_write(&filename, writer.finish())?;
+        unwrap_write(&filename, file.sync_all())
     }
 }

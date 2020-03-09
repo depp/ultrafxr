@@ -11,6 +11,7 @@ pub enum UsageError {
     OptionMissingParameter { option: String },
     OptionUnexpectedParameter { option: String },
     OptionInvalidValue { option: String, value: OsString },
+    Custom { text: String },
 }
 
 impl fmt::Display for UsageError {
@@ -26,6 +27,7 @@ impl fmt::Display for UsageError {
             OptionInvalidValue { option, value } => {
                 write!(f, "invalid value for -{}: {:?}", option, value)
             }
+            Custom { text } => f.write_str(text),
         }
     }
 }
