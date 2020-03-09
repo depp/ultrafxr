@@ -26,6 +26,9 @@ mod units;
 #[allow(dead_code)]
 mod rand;
 
+#[allow(dead_code)]
+mod shell;
+
 #[cfg(test)]
 mod test;
 

@@ -4,6 +4,7 @@ use crate::evaluate::evaluate_program;
 use crate::note::Note;
 use crate::parseargs::{Arg, Args, UsageError};
 use crate::parser::{ParseResult, Parser};
+use crate::shell::quote_os;
 use crate::signal::graph::{Graph, SignalRef};
 use crate::token::Tokenizer;
 use crate::wave;
@@ -166,10 +167,7 @@ impl Command {
     }
 
     pub fn run(&self) -> Result<(), Failed> {
-        let filename = match self.input.to_str() {
-            Some(s) => s.to_string(),
-            None => format!("{:?}", self.input),
-        };
+        let filename = quote_os(&self.input);
         let text = match self.read_input() {
             Ok(text) => text,
             Err(e) => {
@@ -275,18 +273,16 @@ impl Command {
             None => DEFAULT_BUFFER_SIZE,
         };
         let mut path = PathBuf::from(self.input.clone());
+        let filename = quote_os(&path);
         if path.extension() == Some(OsStr::new("wav")) {
-            error!(
-                "refusing to overwrite input file {}",
-                self.input.to_string_lossy(),
-            );
+            error!("refusing to overwrite input file {}", filename);
             return Err(Failed);
         }
         path.set_extension("wav");
         let mut file = match File::create(&path) {
             Ok(file) => file,
             Err(e) => {
-                error!("could not create {}: {}", path.to_string_lossy(), e);
+                error!("could not create {}: {}", filename, e);
                 return Err(Failed);
             }
         };
