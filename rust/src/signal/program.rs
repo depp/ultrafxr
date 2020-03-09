@@ -1,0 +1,182 @@
+use super::graph::{Graph, SignalRef};
+use std::error;
+use std::fmt::{Debug, Display, Formatter, Result as FResult};
+
+/// Parameters for instantiating a synthesizer program.
+#[derive(Debug)]
+pub struct Parameters {
+    /// Audio sample rate, samples per second.
+    pub sample_rate: f64,
+    /// Size of audio buffers.
+    pub buffer_size: usize,
+}
+
+/// Input to a synthesizer program.
+#[derive(Debug)]
+pub struct Input {
+    /// MIDI note value (69 is A4, which sounds at 440 Hz).
+    pub note: f32,
+}
+
+/// Audio program execution state.
+pub struct State {
+    note: f32,
+}
+
+impl State {
+    /// Get the MIDI note value.
+    pub fn note(&self) -> f32 {
+        self.note
+    }
+}
+
+/// An audio function, consuming input buffers and filling an output buffer.
+pub trait Function: Debug {
+    /// Render the next output buffer.
+    fn render(&mut self, output: &mut [f32], inputs: &[&[f32]], state: &State);
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Error {
+    ContainsLoop,
+    BadBuffer,
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter) -> FResult {
+        f.write_str(match self {
+            Error::ContainsLoop => "audio graph contains cycle",
+            Error::BadBuffer => "invalid buffer size",
+        })
+    }
+}
+
+impl error::Error for Error {}
+
+/// Metadata for a node in an audio program.
+struct Node {
+    function: Box<dyn Function>,
+    input_count: usize,
+    inputs: [usize; 4],
+}
+
+/// A program which can render audio.
+pub struct Program {
+    // The nodes are sorted in evaluation order, so each node's inputs are
+    // strictly from previous nodes. The buffer is divided into chunks, with one
+    // chunk for each node.
+    buffer_size: usize,
+    buffer: Box<[f32]>,
+    nodes: Box<[Node]>,
+}
+
+impl Program {
+    /// Create a new program from an audio processing graph.
+    pub fn new(
+        graph: &Graph,
+        output: SignalRef,
+        parameters: &Parameters,
+    ) -> Result<Self, Box<dyn error::Error>> {
+        // State of a node in the graph.
+        #[derive(Clone, Copy)]
+        enum NodeState {
+            Unvisited,
+            Visiting,
+            Visited(usize),
+        }
+        use NodeState::*;
+        // Item in DFS stack.
+        #[derive(Clone, Copy)]
+        enum Action<'a> {
+            Pre,
+            Post(&'a [SignalRef]),
+        }
+        use Action::*;
+        let gnodes = graph.nodes();
+        let mut states = Vec::new();
+        states.resize(gnodes.len(), NodeState::Unvisited);
+        let mut stack = Vec::new();
+        stack.push((output, Pre));
+        let mut nodes: Vec<Node> = Vec::new();
+        loop {
+            let (sig, action) = match stack.pop() {
+                Some(x) => x,
+                None => break,
+            };
+            let state = &mut states[sig.0 as usize];
+            match action {
+                Pre => match *state {
+                    Unvisited => {
+                        *state = Visiting;
+                        let inputs = gnodes[sig.0 as usize].inputs();
+                        stack.push((sig, Post(inputs)));
+                        for &input in inputs.iter() {
+                            stack.push((input, Pre));
+                        }
+                    }
+                    Visiting => {
+                        return Err(Box::new(Error::ContainsLoop));
+                    }
+                    Visited(_) => {}
+                },
+                Post(inputs) => {
+                    *state = Visited(nodes.len());
+                    let mut input_array = [usize::max_value(); 4];
+                    for (n, &input) in inputs.iter().enumerate() {
+                        input_array[n] = match states[input.0 as usize] {
+                            Visited(idx) => idx,
+                            _ => panic!("node not visited"), // Should not happen.
+                        };
+                    }
+                    nodes.push(Node {
+                        function: gnodes[sig.0 as usize].instantiate(parameters)?,
+                        input_count: inputs.len(),
+                        inputs: input_array,
+                    });
+                }
+            }
+        }
+        let buffer_size = parameters.buffer_size;
+        if buffer_size == 0 {
+            return Err(Box::new(Error::BadBuffer));
+        }
+        nodes.shrink_to_fit();
+        let nodes = Box::<[Node]>::from(nodes);
+        let mut buffer = Vec::new();
+        let size = buffer_size.checked_mul(nodes.len()).unwrap();
+        buffer.resize(size, Default::default());
+        let buffer = Box::<[f32]>::from(buffer);
+        Ok(Program {
+            buffer_size,
+            buffer,
+            nodes,
+        })
+    }
+
+    /// Render the next output buffer.
+    pub fn render(&mut self, input: &Input) -> &[f32] {
+        // TODO: Change this function so it doesn't allocate memory.
+        let buffer_size = self.buffer_size;
+        let buffer = &mut self.buffer[..];
+        let nodes = &mut self.nodes[..];
+        let mut outputs = Vec::new();
+        outputs.resize(nodes.len(), Default::default());
+        let state = State { note: input.note };
+        for (n, (node, output)) in nodes
+            .iter_mut()
+            .zip(buffer.chunks_mut(buffer_size))
+            .enumerate()
+        {
+            let input_count = node.input_count;
+            let mut inputs: [&[f32]; 4] = [Default::default(); 4];
+            for (i, &index) in node.inputs[0..input_count].iter().enumerate() {
+                debug_assert!(index < n);
+                inputs[i] = outputs[index];
+            }
+            node.function
+                .render(output, &inputs[0..input_count], &state);
+            outputs[n] = output;
+        }
+        buffer.chunks_exact(self.buffer_size).next_back().unwrap()
+    }
+}

@@ -1,4 +1,24 @@
-use super::graph::{Node, SignalRef};
+use super::graph::{Node, NodeResult, SignalRef};
+use super::program::{Function, Parameters, State};
+use std::error;
+use std::f32;
+use std::fmt::{Display, Formatter, Result as FResult};
+
+/// Unimplemented operator error.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Unimplemented(pub &'static str);
+
+impl Display for Unimplemented {
+    fn fmt(&self, f: &mut Formatter) -> FResult {
+        write!(f, "unimplemented node type: {}", self.0)
+    }
+}
+
+impl error::Error for Unimplemented {}
+
+fn unimplemented(name: &'static str) -> NodeResult {
+    Err(Box::from(Unimplemented(name)))
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
@@ -22,6 +42,9 @@ macro_rules! op {
             fn inputs(&self) -> &[SignalRef] {
                 &[]
             }
+            fn instantiate(&self, _parameters: &Parameters) -> NodeResult {
+                unimplemented(stringify!($name))
+            }
         }
     };
     ($name:ident, [], [$($pname:ident: $ptype:ty),*]) => {
@@ -32,6 +55,9 @@ macro_rules! op {
         impl Node for $name {
             fn inputs(&self) -> &[SignalRef] {
                 &[]
+            }
+            fn instantiate(&self, _parameters: &Parameters) -> NodeResult {
+                unimplemented(stringify!($name))
             }
         }
     };
@@ -44,6 +70,9 @@ macro_rules! op {
         impl Node for $name {
             fn inputs(&self) -> &[SignalRef] {
                 &self.inputs[..]
+            }
+            fn instantiate(&self, _parameters: &Parameters) -> NodeResult {
+                unimplemented(stringify!($name))
             }
         }
     };
@@ -58,10 +87,79 @@ macro_rules! op {
     };
 }
 
+// =================================================================================================
 // Oscillators and generators
-op!(Oscillator, [frequency]);
+// =================================================================================================
+
+/// Generate phase from frequency.
+#[derive(Debug)]
+pub struct Oscillator {
+    pub inputs: [SignalRef; 1],
+}
+
+impl Node for Oscillator {
+    fn inputs(&self) -> &[SignalRef] {
+        &self.inputs[..]
+    }
+    fn instantiate(&self, _parameters: &Parameters) -> NodeResult {
+        Ok(Box::from(OscillatorF {
+            scale: 1.0 / 48000.0,
+            phase: 0.0,
+        }))
+    }
+}
+
+#[derive(Debug)]
+struct OscillatorF {
+    scale: f32,
+    phase: f32,
+}
+
+impl Function for OscillatorF {
+    fn render(&mut self, output: &mut [f32], inputs: &[&[f32]], _state: &State) {
+        let frequency = &inputs[0][0..output.len()];
+        let scale = self.scale;
+        let mut phase = self.phase;
+        for (output, &frequency) in output.iter_mut().zip(frequency.iter()) {
+            *output = phase;
+            phase += frequency * scale;
+        }
+        self.phase = phase;
+    }
+}
+
+// =================================================================================================
+
+/// Generate sine waveform from phase.
+#[derive(Debug)]
+pub struct Sine {
+    pub inputs: [SignalRef; 1],
+}
+
+impl Node for Sine {
+    fn inputs(&self) -> &[SignalRef] {
+        &self.inputs[..]
+    }
+    fn instantiate(&self, _parameters: &Parameters) -> NodeResult {
+        Ok(Box::from(SineF))
+    }
+}
+
+#[derive(Debug)]
+struct SineF;
+
+impl Function for SineF {
+    fn render(&mut self, output: &mut [f32], inputs: &[&[f32]], _state: &State) {
+        let phase = &inputs[0][0..output.len()];
+        for (output, &phase) in output.iter_mut().zip(phase.iter()) {
+            *output = (phase * (2.0 * f32::consts::PI)).sin();
+        }
+    }
+}
+
+// =================================================================================================
+
 op!(Sawtooth, [phase]);
-op!(Sine, [phase]);
 op!(Noise, []);
 
 // Filters
@@ -94,6 +192,9 @@ impl Node for Envelope {
     fn inputs(&self) -> &[SignalRef] {
         &[]
     }
+    fn instantiate(&self, _parameters: &Parameters) -> NodeResult {
+        unimplemented("Envelope")
+    }
 }
 
 // Utilities
@@ -109,4 +210,38 @@ op!(ScaleInt, [input], [scale: i32]);
 op!(Parameter, 0, 0, 1); // -> deref and derefcopy
 op!(Note, 1, 0, 1);
  */
-op!(Note, [], [offset: i32]);
+
+// =================================================================================================
+
+/// Generate input note frequency.
+#[derive(Debug)]
+pub struct Note {
+    /// Offset to apply to input note, in semitones.
+    pub offset: i32,
+}
+
+impl Node for Note {
+    fn inputs(&self) -> &[SignalRef] {
+        &[]
+    }
+    fn instantiate(&self, _parameters: &Parameters) -> NodeResult {
+        Ok(Box::from(NoteF {
+            offset: self.offset,
+        }))
+    }
+}
+
+#[derive(Debug)]
+struct NoteF {
+    offset: i32,
+}
+
+impl Function for NoteF {
+    fn render(&mut self, output: &mut [f32], _inputs: &[&[f32]], state: &State) {
+        let frequency =
+            440.0 * 2.0f32.powf((state.note() + (self.offset - 69) as f32) * (1.0 / 12.0));
+        for x in output.iter_mut() {
+            *x = frequency;
+        }
+    }
+}

@@ -6,10 +6,10 @@ use crate::parseargs::{Arg, Args, UsageError};
 use crate::parser::{ParseResult, Parser};
 use crate::shell::quote_os;
 use crate::signal::graph::{Graph, SignalRef};
+use crate::signal::program::{Input as PInput, Parameters, Program};
 use crate::token::Tokenizer;
 use crate::wave;
 use std::env;
-use std::f32;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::io::{stdout, Error as IOError, Read, Write};
@@ -268,7 +268,7 @@ impl Command {
     }
 
     /// Write output wave file.
-    fn write_wave(&self, _graph: &Graph, _signal: SignalRef) -> Result<(), Failed> {
+    fn write_wave(&self, graph: &Graph, signal: SignalRef) -> Result<(), Failed> {
         let path = match &self.wave_file {
             Some(path) => path,
             None => return Ok(()),
@@ -294,7 +294,7 @@ impl Command {
             }
             None => DEFAULT_SAMPLE_RATE,
         };
-        let _buffer_size = match self.buffer_size {
+        let buffer_size = match self.buffer_size {
             Some(size) => {
                 if size < MIN_BUFFER_SIZE {
                     warning!("buffer size {} is too low, using {}", size, MIN_BUFFER_SIZE);
@@ -320,6 +320,26 @@ impl Command {
             }
             None => DEFAULT_BUFFER_SIZE,
         };
+        let note = self
+            .notes
+            .as_ref()
+            .and_then(|x| x.first().copied())
+            .unwrap_or(Note(60));
+        let program = Program::new(
+            &graph,
+            signal,
+            &Parameters {
+                sample_rate: sample_rate as f64,
+                buffer_size,
+            },
+        );
+        let mut program = match program {
+            Ok(p) => p,
+            Err(e) => {
+                error!("could not create program: {}", e);
+                return Err(Failed);
+            }
+        };
         let mut file = match File::create(&path) {
             Ok(file) => file,
             Err(e) => {
@@ -334,12 +354,14 @@ impl Command {
                 sample_rate,
             },
         );
-        let mut buf = Vec::new();
-        let w = 2.0 * f32::consts::PI * 440.0 / sample_rate as f32;
-        for i in 0..48000 {
-            buf.push(((i as f32) * w).sin());
+        let mut count = 0;
+        while count < sample_rate as usize {
+            let output = program.render(&PInput {
+                note: note.0 as f32,
+            });
+            count += output.len();
+            unwrap_write(&filename, writer.write(output))?;
         }
-        unwrap_write(&filename, writer.write(&buf[..]))?;
         unwrap_write(&filename, writer.finish())?;
         unwrap_write(&filename, file.sync_all())
     }
