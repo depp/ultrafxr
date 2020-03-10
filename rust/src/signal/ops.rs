@@ -21,15 +21,6 @@ fn unimplemented(name: &'static str) -> NodeResult {
     Err(Box::new(Unimplemented(name)))
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
-pub enum FilterMode {
-    LowPass2,
-    HighPass2,
-    BandPass2,
-    LowPass4,
-}
-
 macro_rules! count_inputs {
     () => (0usize);
     ($head:ident $($tail:ident)*) => (1usize + count_inputs!($($tail)*));
@@ -183,14 +174,6 @@ impl Function for GenWaveformF {
 op!(Sawtooth, [phase]);
 op!(Noise, []);
 
-// Filters
-op!(HighPass, [input], [frequency: f64]);
-op!(
-    StateVariableFilter,
-    [input, frequency],
-    [mode: FilterMode, q: f64],
-);
-
 // Distortion
 op!(Saturate, [input]);
 op!(Rectify, [input]);
@@ -266,7 +249,34 @@ impl Function for MixF {
 
 // Utilities
 op!(Constant, [], [value: f64]);
-op!(Frequency, [input]);
+
+// =================================================================================================
+
+/// Convert numbers from -1..+1 to 20..20000, exponentially.
+#[derive(Debug)]
+pub struct Frequency {
+    pub input: SignalRef,
+}
+
+impl Node for Frequency {
+    fn inputs(&self) -> &[SignalRef] {
+        from_ref(&self.input)
+    }
+    fn instantiate(&self, _parameters: &Parameters) -> NodeResult {
+        Ok(Box::new(FrequencyF))
+    }
+}
+
+#[derive(Debug)]
+struct FrequencyF;
+
+impl Function for FrequencyF {
+    fn render(&mut self, output: &mut [f32], inputs: &[&[f32]], _state: &mut State) {
+        for (y, &x) in output.iter_mut().zip(inputs[0].iter()) {
+            *y = 630.0 * 32.0f32.powf(x);
+        }
+    }
+}
 
 // =================================================================================================
 

@@ -1,6 +1,7 @@
 use super::envelope::envelope;
 use super::environment::*;
 use crate::sexpr::SExpr;
+use crate::signal::filter;
 use crate::signal::graph::{Node, SignalRef};
 use crate::signal::ops;
 use crate::sourcepos::{HasPos, Span};
@@ -46,13 +47,13 @@ pub fn operators() -> HashMap<&'static str, Operator, RandomState> {
         "sine" => sine,
         "noise" => !,
         "highPass" => high_pass,
-        "lowPass2" => !,
-        "highPass2" => !,
-        "bandPass2" => !,
-        "lowPass4" => !,
+        "lowPass2" => low_pass_2,
+        "highPass2" => high_pass_2,
+        "bandPass2" => band_pass_2,
+        "lowPass4" => low_pass_4,
         "saturate" => !,
         "rectify" => !,
-        "frequency" => !,
+        "frequency" => frequency,
         "mix" => mix,
         "phase-mod" => phase_mod,
         "overtone" => overtone,
@@ -186,17 +187,51 @@ fn high_pass(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
         env,
         pos,
         Units::volt(1),
-        ops::HighPass {
-            inputs: [input?],
+        filter::HighPass {
+            input: input?,
             frequency: frequency?,
         },
     )
 }
 
-// low_pass_2
-// high_pass_2
-// band_pass_2
-// low_pass_4
+fn state_variable(
+    env: &mut Env,
+    pos: Span,
+    args: &[EvalResult<Value>],
+    mode: filter::Mode,
+) -> OpResult {
+    parse_args!(args, input, frequency, q);
+    let frequency = frequency.into_signal(Units::hertz(1)).unwrap(env);
+    let input = input.into_signal(Units::volt(1)).unwrap(env);
+    let q = q.into_float(Units::scalar()).unwrap(env);
+    // FIXME: check q >= 0.7
+    new_node(
+        env,
+        pos,
+        Units::volt(1),
+        filter::StateVariable {
+            inputs: [input?, frequency?],
+            mode,
+            q: q?,
+        },
+    )
+}
+
+fn low_pass_2(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
+    state_variable(env, pos, args, filter::Mode::LowPass2)
+}
+
+fn high_pass_2(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
+    state_variable(env, pos, args, filter::Mode::HighPass2)
+}
+
+fn band_pass_2(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
+    state_variable(env, pos, args, filter::Mode::BandPass2)
+}
+
+fn low_pass_4(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
+    state_variable(env, pos, args, filter::Mode::LowPass4)
+}
 
 // =================================================================================================
 // Distortion
@@ -208,6 +243,12 @@ fn high_pass(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
 // =================================================================================================
 // Utilities
 // =================================================================================================
+
+fn frequency(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
+    parse_args!(args, input);
+    let input = input.into_signal(Units::scalar()).unwrap(env);
+    new_node(env, pos, Units::hertz(1), ops::Frequency { input: input? })
+}
 
 fn multiply(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
     let (first, rest) = match args.split_first() {
