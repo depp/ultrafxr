@@ -3,6 +3,7 @@ use super::program::{Function, Parameters, State};
 use std::error;
 use std::f32;
 use std::fmt::{Display, Formatter, Result as FResult};
+use std::slice::from_ref;
 
 /// Unimplemented operator error.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -196,6 +197,7 @@ op!(Rectify, [input]);
 
 // =================================================================================================
 
+/// Multiply two inputs.
 #[derive(Debug)]
 pub struct Multiply {
     pub inputs: [SignalRef; 2],
@@ -203,7 +205,7 @@ pub struct Multiply {
 
 impl Node for Multiply {
     fn inputs(&self) -> &[SignalRef] {
-        return &self.inputs[..];
+        &self.inputs[..]
     }
     fn instantiate(&self, _parameters: &Parameters) -> NodeResult {
         Ok(Box::new(MultiplyF))
@@ -225,12 +227,105 @@ impl Function for MultiplyF {
 
 // =================================================================================================
 
+/// Multiply an input by a constant gain and add it to the base signal.
+#[derive(Debug)]
+pub struct Mix {
+    /// (base, input) => base + gain * input
+    pub inputs: [SignalRef; 2],
+    pub gain: f64,
+}
+
+impl Node for Mix {
+    fn inputs(&self) -> &[SignalRef] {
+        &self.inputs[..]
+    }
+    fn instantiate(&self, _parameters: &Parameters) -> NodeResult {
+        Ok(Box::new(MixF {
+            gain: self.gain as f32,
+        }))
+    }
+}
+
+#[derive(Debug)]
+struct MixF {
+    gain: f32,
+}
+
+impl Function for MixF {
+    fn render(&mut self, output: &mut [f32], inputs: &[&[f32]], _state: &mut State) {
+        for (output, (&base, &input)) in output
+            .iter_mut()
+            .zip(inputs[0].iter().zip(inputs[1].iter()))
+        {
+            *output = base + self.gain * input;
+        }
+    }
+}
+
+// =================================================================================================
+
 // Utilities
 op!(Constant, [], [value: f64]);
 op!(Frequency, [input]);
-op!(Mix, [base, input], [gain: f64]);
-op!(Zero, []);
-op!(ScaleInt, [input], [scale: i32]);
+
+// =================================================================================================
+
+/// Create a zero buffer.
+#[derive(Debug)]
+pub struct Zero;
+
+impl Node for Zero {
+    fn inputs(&self) -> &[SignalRef] {
+        &[]
+    }
+    fn instantiate(&self, _parameters: &Parameters) -> NodeResult {
+        Ok(Box::new(ZeroF))
+    }
+}
+
+#[derive(Debug)]
+struct ZeroF;
+
+impl Function for ZeroF {
+    fn render(&mut self, output: &mut [f32], _inputs: &[&[f32]], _state: &mut State) {
+        for output in output.iter_mut() {
+            *output = 0.0;
+        }
+    }
+}
+
+// =================================================================================================
+
+/// Scale input by an integer.
+#[derive(Debug)]
+pub struct ScaleInt {
+    pub input: SignalRef,
+    pub scale: i32,
+}
+
+impl Node for ScaleInt {
+    fn inputs(&self) -> &[SignalRef] {
+        from_ref(&self.input)
+    }
+    fn instantiate(&self, _parameters: &Parameters) -> NodeResult {
+        Ok(Box::new(ScaleIntF {
+            scale: self.scale as f32,
+        }))
+    }
+}
+
+#[derive(Debug)]
+struct ScaleIntF {
+    scale: f32,
+}
+
+impl Function for ScaleIntF {
+    fn render(&mut self, output: &mut [f32], inputs: &[&[f32]], _state: &mut State) {
+        for (output, &input) in output.iter_mut().zip(inputs[0].iter()) {
+            *output = input * self.scale
+        }
+    }
+}
 
 /*
 // Parameter references

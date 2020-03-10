@@ -318,7 +318,7 @@ fn overtone(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
         pos,
         Units::radian(1),
         ops::ScaleInt {
-            inputs: [phase?],
+            input: phase?,
             scale: overtone?,
         },
     )
