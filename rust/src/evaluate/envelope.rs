@@ -1,13 +1,13 @@
 use super::environment::*;
 use crate::sexpr::{Content, SExpr};
-use crate::signal::ops::{Envelope, EnvelopeSegment};
+use crate::signal::envelope::{Envelope, Segment};
 use crate::sourcepos::{HasPos, Span};
 use crate::units::Units;
 
-type EnvResult = Result<EnvelopeSegment, OpError>;
+type EnvResult = Result<Segment, OpError>;
 type Definition = fn(&mut Env, &[EvalResult<Value>]) -> EnvResult;
 
-fn evaluate<'a>(env: &mut Env<'a>, expr: &'a SExpr) -> Result<EnvelopeSegment, Failed> {
+fn evaluate<'a>(env: &mut Env<'a>, expr: &'a SExpr) -> Result<Segment, Failed> {
     let pos = expr.source_pos();
     match &expr.content {
         &Content::Symbol(_) => error!(env, pos, "unexpected symbol in envelope"),
@@ -60,7 +60,12 @@ pub fn envelope<'a>(env: &mut Env<'a>, pos: Span, args: &'a [SExpr]) -> OpResult
     }
     segments.shrink_to_fit();
     Ok(Value(
-        Data::Signal(env.new_node(pos, Envelope(Box::from(segments)))),
+        Data::Signal(env.new_node(
+            pos,
+            Envelope {
+                segments: Box::from(segments),
+            },
+        )),
         Units::scalar(),
     ))
 }
@@ -68,35 +73,41 @@ pub fn envelope<'a>(env: &mut Env<'a>, pos: Span, args: &'a [SExpr]) -> OpResult
 fn set(env: &mut Env, args: &[EvalResult<Value>]) -> EnvResult {
     parse_args!(args, value);
     let value = value.into_float(Units::scalar()).unwrap(env);
-    Ok(EnvelopeSegment::Set(value?))
+    Ok(Segment::Set { value: value? })
 }
 
 fn lin(env: &mut Env, args: &[EvalResult<Value>]) -> EnvResult {
     parse_args!(args, time, value);
     let time = time.into_float(Units::second(1)).unwrap(env);
     let value = value.into_float(Units::scalar()).unwrap(env);
-    Ok(EnvelopeSegment::Lin(time?, value?))
+    Ok(Segment::Linear {
+        time: time?,
+        value: value?,
+    })
 }
 
 fn exp(env: &mut Env, args: &[EvalResult<Value>]) -> EnvResult {
     parse_args!(args, time, value);
     let time = time.into_float(Units::second(1)).unwrap(env);
     let value = value.into_float(Units::scalar()).unwrap(env);
-    Ok(EnvelopeSegment::Exp(time?, value?))
+    Ok(Segment::Exponential {
+        time_constant: time?,
+        value: value?,
+    })
 }
 
 fn delay(env: &mut Env, args: &[EvalResult<Value>]) -> EnvResult {
     parse_args!(args, time);
     let time = time.into_float(Units::second(1)).unwrap(env);
-    Ok(EnvelopeSegment::Delay(time?))
+    Ok(Segment::Delay { time: time? })
 }
 
 fn gate(_env: &mut Env, args: &[EvalResult<Value>]) -> EnvResult {
     parse_args!(args);
-    Ok(EnvelopeSegment::Gate)
+    Ok(Segment::Gate)
 }
 
 fn stop(_env: &mut Env, args: &[EvalResult<Value>]) -> EnvResult {
     parse_args!(args);
-    Ok(EnvelopeSegment::Stop)
+    Ok(Segment::Stop)
 }

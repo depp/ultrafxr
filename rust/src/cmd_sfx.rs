@@ -354,12 +354,22 @@ impl Command {
                 sample_rate,
             },
         );
-        let mut count = 0;
-        while count < sample_rate as usize {
+        let mut pos: usize = 0;
+        let end = sample_rate as usize;
+        loop {
             let output = program.render(&PInput {
+                gate: if pos < end && end - pos < buffer_size {
+                    Some(end - pos)
+                } else {
+                    None
+                },
                 note: note.0 as f32,
             });
-            count += output.len();
+            let output = match output {
+                Some(x) => x,
+                None => break,
+            };
+            pos += output.len();
             unwrap_write(&filename, writer.write(output))?;
         }
         unwrap_write(&filename, writer.finish())?;

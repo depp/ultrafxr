@@ -17,7 +17,7 @@ impl Display for Unimplemented {
 impl error::Error for Unimplemented {}
 
 fn unimplemented(name: &'static str) -> NodeResult {
-    Err(Box::from(Unimplemented(name)))
+    Err(Box::new(Unimplemented(name)))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -102,7 +102,7 @@ impl Node for Oscillator {
         &self.inputs[..]
     }
     fn instantiate(&self, _parameters: &Parameters) -> NodeResult {
-        Ok(Box::from(OscillatorF {
+        Ok(Box::new(OscillatorF {
             scale: 1.0 / 48000.0,
             phase: 0.0,
         }))
@@ -116,7 +116,7 @@ struct OscillatorF {
 }
 
 impl Function for OscillatorF {
-    fn render(&mut self, output: &mut [f32], inputs: &[&[f32]], _state: &State) {
+    fn render(&mut self, output: &mut [f32], inputs: &[&[f32]], _state: &mut State) {
         let frequency = &inputs[0][0..output.len()];
         let scale = self.scale;
         let mut phase = self.phase;
@@ -160,7 +160,7 @@ impl Node for GenWaveform {
 struct GenWaveformF(Waveform);
 
 impl Function for GenWaveformF {
-    fn render(&mut self, output: &mut [f32], inputs: &[&[f32]], _state: &State) {
+    fn render(&mut self, output: &mut [f32], inputs: &[&[f32]], _state: &mut State) {
         let items = output.iter_mut().zip(inputs[0].iter());
         match self.0 {
             Waveform::Sine => {
@@ -194,31 +194,38 @@ op!(
 op!(Saturate, [input]);
 op!(Rectify, [input]);
 
-// Envelopes
-#[derive(Debug, Clone, Copy)]
-pub enum EnvelopeSegment {
-    Set(f64),
-    Lin(f64, f64),
-    Exp(f64, f64),
-    Delay(f64),
-    Gate,
-    Stop,
+// =================================================================================================
+
+#[derive(Debug)]
+pub struct Multiply {
+    pub inputs: [SignalRef; 2],
+}
+
+impl Node for Multiply {
+    fn inputs(&self) -> &[SignalRef] {
+        return &self.inputs[..];
+    }
+    fn instantiate(&self, _parameters: &Parameters) -> NodeResult {
+        Ok(Box::new(MultiplyF))
+    }
 }
 
 #[derive(Debug)]
-pub struct Envelope(pub Box<[EnvelopeSegment]>);
+struct MultiplyF;
 
-impl Node for Envelope {
-    fn inputs(&self) -> &[SignalRef] {
-        &[]
-    }
-    fn instantiate(&self, _parameters: &Parameters) -> NodeResult {
-        unimplemented("Envelope")
+impl Function for MultiplyF {
+    fn render(&mut self, output: &mut [f32], inputs: &[&[f32]], _state: &mut State) {
+        let inputx = inputs[0];
+        let inputy = inputs[1];
+        for (output, (&x, &y)) in output.iter_mut().zip(inputx.iter().zip(inputy.iter())) {
+            *output = x * y;
+        }
     }
 }
 
+// =================================================================================================
+
 // Utilities
-op!(Multiply, [x, y]);
 op!(Constant, [], [value: f64]);
 op!(Frequency, [input]);
 op!(Mix, [base, input], [gain: f64]);
@@ -245,7 +252,7 @@ impl Node for Note {
         &[]
     }
     fn instantiate(&self, _parameters: &Parameters) -> NodeResult {
-        Ok(Box::from(NoteF {
+        Ok(Box::new(NoteF {
             offset: self.offset,
         }))
     }
@@ -257,7 +264,7 @@ struct NoteF {
 }
 
 impl Function for NoteF {
-    fn render(&mut self, output: &mut [f32], _inputs: &[&[f32]], state: &State) {
+    fn render(&mut self, output: &mut [f32], _inputs: &[&[f32]], state: &mut State) {
         let frequency =
             440.0 * 2.0f32.powf((state.note() + (self.offset - 69) as f32) * (1.0 / 12.0));
         for x in output.iter_mut() {

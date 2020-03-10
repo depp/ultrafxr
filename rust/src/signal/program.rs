@@ -1,4 +1,5 @@
 use super::graph::{Graph, SignalRef};
+use std::cmp::min;
 use std::error;
 use std::fmt::{Debug, Display, Formatter, Result as FResult};
 
@@ -14,26 +15,43 @@ pub struct Parameters {
 /// Input to a synthesizer program.
 #[derive(Debug)]
 pub struct Input {
+    /// The number of samples before the gate ends.
+    pub gate: Option<usize>,
     /// MIDI note value (69 is A4, which sounds at 440 Hz).
     pub note: f32,
 }
 
 /// Audio program execution state.
 pub struct State {
+    gate: Option<usize>,
     note: f32,
+    end: Option<usize>,
 }
 
 impl State {
+    /// Get the number of samples before the gate ends.
+    pub fn gate(&self) -> Option<usize> {
+        self.gate
+    }
+
     /// Get the MIDI note value.
     pub fn note(&self) -> f32 {
         self.note
+    }
+
+    /// Stop the program execution after the given number of samples.
+    pub fn stop(&mut self, pos: usize) {
+        self.end = Some(match self.end {
+            None => pos,
+            Some(oldpos) => min(pos, oldpos),
+        });
     }
 }
 
 /// An audio function, consuming input buffers and filling an output buffer.
 pub trait Function: Debug {
     /// Render the next output buffer.
-    fn render(&mut self, output: &mut [f32], inputs: &[&[f32]], state: &State);
+    fn render(&mut self, output: &mut [f32], inputs: &[&[f32]], state: &mut State);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -68,6 +86,8 @@ pub struct Program {
     buffer_size: usize,
     buffer: Box<[f32]>,
     nodes: Box<[Node]>,
+    // If true, the program is done and has no more output.
+    done: bool,
 }
 
 impl Program {
@@ -150,18 +170,27 @@ impl Program {
             buffer_size,
             buffer,
             nodes,
+            done: false,
         })
     }
 
-    /// Render the next output buffer.
-    pub fn render(&mut self, input: &Input) -> &[f32] {
+    /// Render the next output buffer. This will return a series of full
+    /// buffers, then optionally a short buffer, and then None.
+    pub fn render(&mut self, input: &Input) -> Option<&[f32]> {
+        if self.done {
+            return None;
+        }
         // TODO: Change this function so it doesn't allocate memory.
         let buffer_size = self.buffer_size;
         let buffer = &mut self.buffer[..];
         let nodes = &mut self.nodes[..];
         let mut outputs = Vec::new();
         outputs.resize(nodes.len(), Default::default());
-        let state = State { note: input.note };
+        let mut state = State {
+            note: input.note,
+            gate: input.gate,
+            end: None,
+        };
         for (n, (node, output)) in nodes
             .iter_mut()
             .zip(buffer.chunks_mut(buffer_size))
@@ -174,9 +203,16 @@ impl Program {
                 inputs[i] = outputs[index];
             }
             node.function
-                .render(output, &inputs[0..input_count], &state);
+                .render(output, &inputs[0..input_count], &mut state);
             outputs[n] = output;
         }
-        buffer.chunks_exact(self.buffer_size).next_back().unwrap()
+        let output = buffer.chunks_exact(self.buffer_size).next_back().unwrap();
+        Some(match state.end {
+            Some(len) => {
+                self.done = true;
+                &output[..len]
+            }
+            None => output,
+        })
     }
 }
