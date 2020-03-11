@@ -51,8 +51,8 @@ pub fn operators() -> HashMap<&'static str, Operator, RandomState> {
         "highPass2" => high_pass_2,
         "bandPass2" => band_pass_2,
         "lowPass4" => low_pass_4,
-        "saturate" => !,
-        "rectify" => !,
+        "saturate" => saturate,
+        "rectify" => rectify,
         "frequency" => frequency,
         "mix" => mix,
         "phase-mod" => phase_mod,
@@ -146,31 +146,61 @@ fn oscillator(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult 
     )
 }
 
-fn waveform(
+fn apply_function(
     env: &mut Env,
     pos: Span,
     args: &[EvalResult<Value>],
-    waveform: ops::Waveform,
+    function: ops::PointFunction,
+    in_units: Units,
+    out_units: Units,
 ) -> OpResult {
     parse_args!(args, phase);
-    let phase = phase.into_signal(Units::radian(1)).unwrap(env);
-    new_node(
-        env,
-        pos,
-        Units::volt(1),
-        ops::GenWaveform {
-            inputs: [phase?],
-            waveform,
-        },
-    )
+    let input = phase.into_signal(in_units).unwrap(env)?;
+    new_node(env, pos, out_units, ops::ApplyFunction { input, function })
 }
 
 fn sine(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
-    waveform(env, pos, args, ops::Waveform::Sine)
+    apply_function(
+        env,
+        pos,
+        args,
+        ops::PointFunction::Sine,
+        Units::radian(1),
+        Units::volt(1),
+    )
 }
 
 fn sawtooth(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
-    waveform(env, pos, args, ops::Waveform::Sawtooth)
+    apply_function(
+        env,
+        pos,
+        args,
+        ops::PointFunction::Sawtooth,
+        Units::radian(1),
+        Units::volt(1),
+    )
+}
+
+fn saturate(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
+    apply_function(
+        env,
+        pos,
+        args,
+        ops::PointFunction::Saturate,
+        Units::volt(1),
+        Units::volt(1),
+    )
+}
+
+fn rectify(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
+    apply_function(
+        env,
+        pos,
+        args,
+        ops::PointFunction::Rectify,
+        Units::volt(1),
+        Units::volt(1),
+    )
 }
 
 fn noise(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
@@ -235,13 +265,6 @@ fn band_pass_2(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult
 fn low_pass_4(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
     state_variable(env, pos, args, filter::Mode::LowPass4)
 }
-
-// =================================================================================================
-// Distortion
-// =================================================================================================
-
-// saturate
-// rectify
 
 // =================================================================================================
 // Utilities

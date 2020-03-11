@@ -17,66 +17,9 @@ impl Display for Unimplemented {
 
 impl error::Error for Unimplemented {}
 
+#[allow(dead_code)]
 fn unimplemented(name: &'static str) -> NodeResult {
     Err(Box::new(Unimplemented(name)))
-}
-
-macro_rules! count_inputs {
-    () => (0usize);
-    ($head:ident $($tail:ident)*) => (1usize + count_inputs!($($tail)*));
-}
-
-macro_rules! op {
-    ($name:ident, [], []) => {
-        #[derive(Debug)]
-        pub struct $name;
-        impl Node for $name {
-            fn inputs(&self) -> &[SignalRef] {
-                &[]
-            }
-            fn instantiate(&self, _parameters: &Parameters) -> NodeResult {
-                unimplemented(stringify!($name))
-            }
-        }
-    };
-    ($name:ident, [], [$($pname:ident: $ptype:ty),*]) => {
-        #[derive(Debug)]
-        pub struct $name {
-            $(pub $pname: $ptype),*
-        }
-        impl Node for $name {
-            fn inputs(&self) -> &[SignalRef] {
-                &[]
-            }
-            fn instantiate(&self, _parameters: &Parameters) -> NodeResult {
-                unimplemented(stringify!($name))
-            }
-        }
-    };
-    ($name:ident, [$($input:ident),*], [$($pname:ident: $ptype:ty),*]) => {
-        #[derive(Debug)]
-        pub struct $name {
-            pub inputs: [SignalRef; count_inputs!($($input)*)],
-            $(pub $pname: $ptype),*
-        }
-        impl Node for $name {
-            fn inputs(&self) -> &[SignalRef] {
-                &self.inputs[..]
-            }
-            fn instantiate(&self, _parameters: &Parameters) -> NodeResult {
-                unimplemented(stringify!($name))
-            }
-        }
-    };
-    ($name:ident, [$($input:ident),*], [$($pname:ident: $ptype:ty),*],) => {
-        op!($name, [$($input),*], [$($pname: $ptype),*]);
-    };
-    ($name:ident, [$($input:ident),*],) => {
-        op!($name, [$($input),*], []);
-    };
-    ($name:ident, [$($input:ident),*]) => {
-        op!($name, [$($input),*], []);
-    };
 }
 
 // =================================================================================================
@@ -127,42 +70,55 @@ impl Function for OscillatorF {
 
 /// Types of waveforms.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Waveform {
+pub enum PointFunction {
     Sine,
     Sawtooth,
+    Saturate,
+    Rectify,
 }
 
-/// Generate a simple waveform from phase.
+/// Apply a function to the waveform.
 #[derive(Debug)]
-pub struct GenWaveform {
-    pub inputs: [SignalRef; 1],
-    pub waveform: Waveform,
+pub struct ApplyFunction {
+    pub input: SignalRef,
+    pub function: PointFunction,
 }
 
-impl Node for GenWaveform {
+impl Node for ApplyFunction {
     fn inputs(&self) -> &[SignalRef] {
-        &self.inputs[..]
+        from_ref(&self.input)
     }
     fn instantiate(&self, _parameters: &Parameters) -> NodeResult {
-        Ok(Box::new(GenWaveformF(self.waveform)))
+        Ok(Box::new(ApplyFunctionF(self.function)))
     }
 }
 
 #[derive(Debug)]
-struct GenWaveformF(Waveform);
+struct ApplyFunctionF(PointFunction);
 
-impl Function for GenWaveformF {
+impl Function for ApplyFunctionF {
     fn render(&mut self, output: &mut [f32], inputs: &[&[f32]], _state: &mut State) {
         let items = output.iter_mut().zip(inputs[0].iter());
+        use PointFunction::*;
         match self.0 {
-            Waveform::Sine => {
+            Sine => {
                 for (output, &phase) in items {
                     *output = (phase * (2.0 * f32::consts::PI)).sin();
                 }
             }
-            Waveform::Sawtooth => {
+            Sawtooth => {
                 for (output, &phase) in items {
                     *output = phase * 2.0 - 1.0;
+                }
+            }
+            Saturate => {
+                for (y, &x) in items {
+                    *y = x.tanh();
+                }
+            }
+            Rectify => {
+                for (y, &x) in items {
+                    *y = x.abs();
                 }
             }
         }
@@ -195,12 +151,6 @@ impl Function for NoiseF {
         }
     }
 }
-
-// =================================================================================================
-
-// Distortion
-op!(Saturate, [input]);
-op!(Rectify, [input]);
 
 // =================================================================================================
 
@@ -268,11 +218,6 @@ impl Function for MixF {
         }
     }
 }
-
-// =================================================================================================
-
-// Utilities
-op!(Constant, [], [value: f64]);
 
 // =================================================================================================
 
