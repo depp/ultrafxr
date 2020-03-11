@@ -38,4 +38,9 @@ impl Rand {
             .0;
         ((((state >> 18) ^ state) >> 27) as u32).rotate_right((state >> 59) as u32)
     }
+
+    /// Return the next number in the sequence, scaled to 0.0-1.0.
+    pub fn next_float(&mut self) -> f32 {
+        (self.next() as f32) * (1.0 / 4294967296.0)
+    }
 }

@@ -171,8 +171,32 @@ impl Function for GenWaveformF {
 
 // =================================================================================================
 
-op!(Sawtooth, [phase]);
-op!(Noise, []);
+/// Generate uniform noise at the full sample rate.
+#[derive(Debug)]
+pub struct Noise;
+
+impl Node for Noise {
+    fn inputs(&self) -> &[SignalRef] {
+        &[]
+    }
+    fn instantiate(&self, _parameters: &Parameters) -> NodeResult {
+        Ok(Box::new(NoiseF))
+    }
+}
+
+#[derive(Debug)]
+struct NoiseF;
+
+impl Function for NoiseF {
+    fn render(&mut self, output: &mut [f32], _inputs: &[&[f32]], state: &mut State) {
+        let rand = state.rand();
+        for output in output.iter_mut() {
+            *output = rand.next_float() * 2.0 - 1.0
+        }
+    }
+}
+
+// =================================================================================================
 
 // Distortion
 op!(Saturate, [input]);

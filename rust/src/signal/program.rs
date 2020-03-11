@@ -1,4 +1,5 @@
 use super::graph::{Graph, SignalRef};
+use crate::rand::Rand;
 use std::cmp::min;
 use std::error;
 use std::fmt::{Debug, Display, Formatter, Result as FResult};
@@ -26,6 +27,7 @@ pub struct State {
     gate: Option<usize>,
     note: f32,
     end: Option<usize>,
+    rand: Rand,
 }
 
 impl State {
@@ -45,6 +47,11 @@ impl State {
             None => pos,
             Some(oldpos) => min(pos, oldpos),
         });
+    }
+
+    /// Get the random number generator state.
+    pub fn rand(&mut self) -> &mut Rand {
+        &mut self.rand
     }
 }
 
@@ -88,6 +95,7 @@ pub struct Program {
     nodes: Box<[Node]>,
     // If true, the program is done and has no more output.
     done: bool,
+    rand: Rand,
 }
 
 impl Program {
@@ -171,6 +179,8 @@ impl Program {
             buffer,
             nodes,
             done: false,
+            // Hexadecimal digits of pi.
+            rand: Rand::with_seed(0x243f6a8885a308d3, 0x13198a2e03707344),
         })
     }
 
@@ -190,6 +200,7 @@ impl Program {
             note: input.note,
             gate: input.gate,
             end: None,
+            rand: self.rand.clone(),
         };
         for (n, (node, output)) in nodes
             .iter_mut()
@@ -206,6 +217,7 @@ impl Program {
                 .render(output, &inputs[0..input_count], &mut state);
             outputs[n] = output;
         }
+        self.rand = state.rand.clone();
         let output = buffer.chunks_exact(self.buffer_size).next_back().unwrap();
         Some(match state.end {
             Some(len) => {
