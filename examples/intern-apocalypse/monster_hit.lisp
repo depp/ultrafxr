@@ -3,7 +3,7 @@
  (*
   (sine
    (phase-mod
-    (oscillator (frequency (envelope (set -0.2) (lin 200ms -0.9))))
+    (frequency (envelope (set -0.2) (lin 200ms -0.9)))
     0.5 (rectify
          (lowPass2
           (noise)
