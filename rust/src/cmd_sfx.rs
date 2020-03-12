@@ -368,7 +368,7 @@ impl Command {
             .notes
             .as_ref()
             .and_then(|x| x.first().copied())
-            .unwrap_or(Note(60));
+            .unwrap_or(Note(69));
         let program = Program::new(
             &graph,
             signal,
