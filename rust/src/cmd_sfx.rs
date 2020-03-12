@@ -399,7 +399,7 @@ impl Command {
             },
         );
         let mut pos: usize = 0;
-        let end = sample_rate as usize;
+        let end = (sample_rate / 2) as usize;
         loop {
             let output = program.render(&PInput {
                 gate: if pos < end && end - pos < buffer_size {
