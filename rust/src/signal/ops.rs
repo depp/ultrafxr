@@ -108,6 +108,8 @@ impl Function for ApplyFunctionF {
             }
             Sawtooth => {
                 for (output, &phase) in items {
+                    let phase = phase % 1.0;
+                    let phase = if phase < 0.0 { phase + 1.0 } else { phase };
                     *output = phase * 2.0 - 1.0;
                 }
             }
