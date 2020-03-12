@@ -239,8 +239,15 @@ impl Command {
     }
 
     pub fn run(&self) -> Result<(), Failed> {
+        let mut failures: usize = 0;
         for file in self.files.iter() {
-            self.run_file(file)?;
+            match self.run_file(file) {
+                Ok(()) => (),
+                Err(Failed) => failures += 1,
+            }
+        }
+        if failures > 0 && self.files.len() > 1 {
+            error!("failed on {} of {} inputs", failures, self.files.len());
         }
         Ok(())
     }
