@@ -1,6 +1,7 @@
 use crate::error::ErrorHandler;
 use crate::sexpr::{Content, SExpr, Type as EType};
 use crate::signal::graph::{Graph, Node, SignalRef};
+use crate::signal::ops::{Constant, Oscillator};
 use crate::sourcepos::{HasPos, Span};
 use crate::units::Units;
 use std::collections::hash_map::{HashMap, RandomState};
@@ -34,6 +35,7 @@ pub enum ValueError {
     BadType { got: Type, expect: Type },
     BadEType { got: EType, expect: EType },
     BadGain { got: Type },
+    BadPhase { got: Type },
 }
 
 impl Display for ValueError {
@@ -44,6 +46,13 @@ impl Display for ValueError {
             BadType { got, expect } => write!(f, "type is {}, expected {}", got, expect),
             BadEType { got, expect } => write!(f, "type is {}, expected {}", got, expect),
             BadGain { got } => write!(f, "type is {}, expected gain (dB or scalar constant)", got),
+            BadPhase { got } => write!(
+                f,
+                "type is {}, expected phase or frequency ({} or any({}))",
+                got,
+                Type(DataType::Signal, Some(Units::radian(1))),
+                Units::hertz(1),
+            ),
         }
     }
 }
@@ -195,6 +204,37 @@ impl Value {
             val => Err(val.bad_type(Type(DataType::Signal, Some(units)))),
         }
     }
+
+    fn into_phase(self, graph: &mut Graph) -> Result<SignalRef, ValueError> {
+        match self {
+            Value(Data::Signal(sig), units) => {
+                if units == Units::radian(1) {
+                    return Ok(sig);
+                } else if units == Units::hertz(1) {
+                    let sig = graph.add(Box::new(Oscillator { inputs: [sig] }));
+                    return Ok(sig);
+                }
+            }
+            Value(Data::Int(value), units) if units == Units::hertz(1) => {
+                let sig = graph.add(Box::new(Constant {
+                    value: value as f32,
+                }));
+                let sig = graph.add(Box::new(Oscillator { inputs: [sig] }));
+                return Ok(sig);
+            }
+            Value(Data::Float(value), units) if units == Units::hertz(1) => {
+                let sig = graph.add(Box::new(Constant {
+                    value: value as f32,
+                }));
+                let sig = graph.add(Box::new(Oscillator { inputs: [sig] }));
+                return Ok(sig);
+            }
+            _ => {}
+        }
+        Err(ValueError::BadPhase {
+            got: self.get_type(),
+        })
+    }
 }
 
 /// Result of evaluating function or macro body.
@@ -323,6 +363,10 @@ impl EvalResult<Value> {
 
     pub fn into_signal(self, units: Units) -> EvalResult<SignalRef> {
         self.and_then(|v| v.into_signal(units))
+    }
+
+    pub fn into_phase(self, env: &mut Env) -> EvalResult<SignalRef> {
+        self.and_then(|v| v.into_phase(&mut env.graph))
     }
 }
 

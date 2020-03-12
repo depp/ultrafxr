@@ -346,3 +346,33 @@ impl Function for NoteF {
         }
     }
 }
+
+// =================================================================================================
+
+/// Generate a constant value.
+#[derive(Debug)]
+pub struct Constant {
+    pub value: f32,
+}
+
+impl Node for Constant {
+    fn inputs(&self) -> &[SignalRef] {
+        &[]
+    }
+    fn instantiate(&self, _parameters: &Parameters) -> NodeResult {
+        Ok(Box::new(ConstantF { value: self.value }))
+    }
+}
+
+#[derive(Debug)]
+struct ConstantF {
+    value: f32,
+}
+
+impl Function for ConstantF {
+    fn render(&mut self, output: &mut [f32], _inputs: &[&[f32]], _state: &mut State) {
+        for output in output.iter_mut() {
+            *output = self.value;
+        }
+    }
+}

@@ -154,8 +154,13 @@ fn apply_function(
     in_units: Units,
     out_units: Units,
 ) -> OpResult {
-    parse_args!(args, phase);
-    let input = phase.into_signal(in_units).unwrap(env)?;
+    parse_args!(args, input);
+    let input = if in_units == Units::radian(1) {
+        input.into_phase(env)
+    } else {
+        input.into_signal(in_units)
+    };
+    let input = input.unwrap(env)?;
     new_node(env, pos, out_units, ops::ApplyFunction { input, function })
 }
 
@@ -351,9 +356,7 @@ fn phase_mod(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
             args.len()
         );
     }
-    let mut output = func_arg("carrier", &args[0])
-        .into_signal(Units::radian(1))
-        .unwrap(env);
+    let mut output = func_arg("carrier", &args[0]).into_phase(env).unwrap(env);
     for (n, chunk) in args[1..].chunks_exact(2).enumerate() {
         let gain = func_argn("gain", n + 1, &chunk[0]).into_gain().unwrap(env);
         let modulator = func_argn("modulator", n + 1, &chunk[1])
@@ -379,7 +382,7 @@ fn overtone(env: &mut Env, pos: Span, args: &[EvalResult<Value>]) -> OpResult {
         .into_int()
         .and_then(|i| i32::try_from(i).map_err(|_| unimplemented!()))
         .unwrap(env);
-    let phase = phase.into_signal(Units::radian(1)).unwrap(env);
+    let phase = phase.into_phase(env).unwrap(env);
     new_node(
         env,
         pos,
