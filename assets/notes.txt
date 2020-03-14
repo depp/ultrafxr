@@ -1,0 +1,11 @@
+Notes on icon creation:
+
+- Disable anti-aliasing by adding shape-rendering="crispEdges" to the svg element.
+
+- Import in GIMP at 64, 32, 24, and 16 pixel sizes.
+
+- Convert to 15-color palette.
+
+- Remove stray pixels.
+
+- Export as 4-bit ICO.
