@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg
+    xmlns="http://www.w3.org/2000/svg"
+    xmlns:xlink="http://www.w3.org/1999/xlink"
+    viewBox="-32 -32 64 64"
+    version="1.1"
+    width="512"
+    height="512">
+  <defs>
+    <linearGradient
+        id="gradient"
+        x1="-12"
+        y1="-24"
+        x2="12"
+        y2="24"
+        gradientUnits="userSpaceOnUse">
+      <stop
+          style="stop-color:#666666"
+          offset="0" />
+      <stop
+          style="stop-color:#1a1a1a"
+          offset="1" />
+    </linearGradient>
+    <linearGradient
+        id="bggradient"
+        x1="0"
+        y1="-32"
+        x2="0"
+        y2="32"
+        gradientUnits="userSpaceOnUse">
+      <stop
+          style="stop-color:#666666"
+          offset="0" />
+      <stop
+          style="stop-color:#444444"
+          offset="1" />
+    </linearGradient>
+    <path
+        id="major-tick"
+        style="stroke:#ffffff;stroke-width:1.5;stroke-linecap:round"
+        d="M 28,0 H 24" />
+    <path
+        id="minor-tick"
+        style="stroke:#ffffff;stroke-width:0.6;stroke-linecap:round"
+        d="M 26,0 H 24" />
+    <g id="ticks">
+      <use xlink:href="#major-tick"/>
+      <use xlink:href="#minor-tick" transform="rotate(6)" />
+      <use xlink:href="#minor-tick" transform="rotate(12)" />
+      <use xlink:href="#minor-tick" transform="rotate(18)" />
+      <use xlink:href="#minor-tick" transform="rotate(24)" />
+    </g>
+  </defs>
+  <rect
+      x="-32"
+      y="-32"
+      width="64"
+      height="64"
+      style="fill:url(#bggradient)" />
+  <g>
+    <use xlink:href="#ticks" transform="rotate(-240)" />
+    <use xlink:href="#ticks" transform="rotate(-210)" />
+    <use xlink:href="#ticks" transform="rotate(-180)" />
+    <use xlink:href="#ticks" transform="rotate(-150)" />
+    <use xlink:href="#ticks" transform="rotate(-120)" />
+    <use xlink:href="#ticks" transform="rotate(-90)" />
+    <use xlink:href="#ticks" transform="rotate(-60)" />
+    <use xlink:href="#ticks" transform="rotate(-30)" />
+    <use xlink:href="#ticks" />
+    <use xlink:href="#ticks" transform="rotate(30)" />
+    <use xlink:href="#major-tick" transform="rotate(60)" />
+  </g>
+  <g
+      transform="scale(0.7)">
+    <circle
+        cx="0"
+        cy="0"
+        r="32" />
+    <circle
+        cx="0"
+        cy="0"
+        r="28"
+        style="fill:url(#gradient)" />
+    <circle
+        style="fill:#21a33b"
+        cx="0"
+        cy="0"
+        r="24" />
+    <path
+        style="stroke:#000000;stroke-width:8;stroke-linecap:round;stroke-opacity:0.4"
+        d="M 26,0 H 0"
+        transform="translate(1,2) rotate(-30)" />
+    <path
+        style="stroke:#ffffff;stroke-width:8;stroke-linecap:round"
+        d="M 26,0 H 0"
+        transform="rotate(-30)" />
+  </g>
+</svg>
