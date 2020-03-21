@@ -4,6 +4,7 @@
     "lib": ["ES2015"],
     "module": "ES2015",
     "moduleResolution": "node",
+    "outDir": "../build/src",
     "strict": true,
     "target": "ES2017",
     "types": []
