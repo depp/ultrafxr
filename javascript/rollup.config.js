@@ -7,9 +7,11 @@ const banner = `/**
  * @license MIT
  */`;
 export default {
-  input: 'src/index.ts',
+  input: {
+    'ultrafxr.es': 'src/index.ts',
+  },
   output: {
-    dir: 'build',
+    dir: 'dist',
     format: 'es',
     banner,
   },
