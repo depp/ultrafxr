@@ -6,7 +6,12 @@ const banner = `/**
  * https://www.ultrafxr.us/
  * @license MIT
  */`;
-export default {
+const plugins = [
+  typescript({
+    tsconfig: 'src/tsconfig.json',
+  }),
+];
+const esConfig = {
   input: {
     'ultrafxr.es': 'src/index.ts',
   },
@@ -15,9 +20,17 @@ export default {
     format: 'es',
     banner,
   },
-  plugins: [
-    typescript({
-      tsconfig: 'src/tsconfig.json',
-    }),
-  ],
+  plugins,
 };
+const cjsConfig = {
+  input: {
+    'ultrafxr': 'src/index.ts',
+  },
+  output: {
+    dir: 'dist',
+    format: 'cjs',
+    banner,
+  },
+  plugins,
+};
+export default [esConfig, cjsConfig];
