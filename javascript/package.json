@@ -1,4 +1,13 @@
 {
+  "main": "dist/ultrafxr.js",
+  "module": "dist/ultrafxr.es.js",
+  "exports": {
+    ".": {
+      "require": "dist/ultrafxr.js",
+      "import": "dist/ultrafxr.es.js",
+      "default": "dist/ultrafxr.js"
+    }
+  },
   "devDependencies": {
     "@rollup/plugin-typescript": "^4.0.0",
     "@types/node": "^13.9.1",
