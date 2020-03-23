@@ -1,4 +1,4 @@
-/build
 /node_modules
+/public/build
 /yarn-debug.log*
 /yarn-error.log*
