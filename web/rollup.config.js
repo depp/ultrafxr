@@ -10,8 +10,7 @@ export default {
   input: 'src/main.js',
   output: {
     sourcemap: true,
-    format: 'iife',
-    name: 'app',
+    format: 'es',
     file: 'public/build/bundle.js',
   },
   plugins: [
