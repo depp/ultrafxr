@@ -1,4 +1,5 @@
 {
+  "name": "ultrafxr",
   "main": "dist/ultrafxr.js",
   "module": "dist/ultrafxr.es.js",
   "exports": {
@@ -16,5 +17,5 @@
     "typescript": "^3.8.3"
   },
   "private": true,
-  "version": "0.0"
+  "version": "0.0.0"
 }
