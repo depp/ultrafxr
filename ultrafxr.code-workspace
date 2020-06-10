@@ -10,6 +10,20 @@
     "editor.tabSize": 2,
     "files.exclude": {
       "web/node_modules/": true
+    },
+    "[css]": {
+      "editor.formatOnSave": true
+    },
+    "[go]": {
+      "editor.rulers": [100],
+      "editor.tabSize": 4
+    },
+    "[javascript]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode",
+      "editor.formatOnSave": true
+    },
+    "[markdown]": {
+      "editor.formatOnSave": true
     }
   }
 }
