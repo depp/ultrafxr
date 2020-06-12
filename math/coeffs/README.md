@@ -1,0 +1,31 @@
+# Approximations of Mathematical Functions
+
+## Generating Coefficients
+
+The coefficients should be _checked in to the repository._ There is really no guarantee that we would get the same results on different systems or with different versions of NumPy.
+
+Coefficients can be generated with the Python program `calc.py`. This will create coefficient files CSV files.
+
+## Goals
+
+- Functions should be fast
+
+- Implementations should be simple
+
+- Inputs and outputs are arrays
+
+- Adjustable speed / complexity tradeoff
+
+- Accurate results when inputs and outputs are finite and within a limited range (up to 1e6, which should be the largest number we need for audio)
+
+## Functions
+
+### exp2
+
+We create a polynomial approximation to `2^x`, for x in the range -0.5..+0.5 using the Remez exchange algorithm, adjusted to minimize relative error.
+
+### sin4
+
+We create an odd polynomial approximation to `sin(pi/2 x)`, for x in the range -1..+1 by setting `f(0)=0`, `f(1)=1`, and requiring odd derivatives to be zero at `x=1`.
+
+The function is called “sin4” because it has a period of 4.
