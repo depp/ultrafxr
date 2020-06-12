@@ -110,7 +110,8 @@ static const bool kFlagNeedsArg[FLAG_TYPE_COUNT] = {
     [kFlagInteger] = true,
 };
 
-int flag_parse(char **argv) {
+int flag_parse(int argc, char **argv) {
+    (void)argc;
     char **outp = argv, **inp = argv + 1;
     struct flag *fs = flags, *fe = fs + flag_count;
     while (1) {

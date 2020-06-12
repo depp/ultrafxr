@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
     flag_bool(&benchmark, "benchmark", "run benchmarks");
     flag_int(&size, "size", "array size");
     flag_int(&itercount, "iterations", "benchmark iterations");
-    argc = flag_parse(argv);
+    argc = flag_parse(argc, argv);
     if (size < 1) {
         die(0, "invalid size");
     }

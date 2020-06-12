@@ -14,4 +14,4 @@ void flag_bool(bool *value, const char *name, const char *doc);
 
 // Parse the command-line flags. Modifies the input to contain only positional
 // args. Removes argv[0]. Returns the new value of argc.
-int flag_parse(char **argv);
+int flag_parse(int argc, char **argv);
