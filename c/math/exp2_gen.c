@@ -13,27 +13,68 @@ static void emit(int order, char **coeffs) {
         goto error;
     }
 
-    (void)coeffs;
+    const char *args =
+        "(int n, float *restrict outs, const float *restrict xs)";
 
     xputs(fp, kNotice);
-    xputs(fp, "#include \"c/math/math.h\"\n");
-    xputs(fp, "#include <math.h>\n");
-    xprintf(fp, "void ufxr_exp2_%d", order);
-    xputs(fp, "(int n, float *restrict outs, const float *restrict xs) {\n");
+    xputs(fp,
+          "#include \"c/math/math.h\"\n"
+          "#include <assert.h>\n");
+
+    xputs(fp,
+          "\n"
+          "// SSE2 version.\n"
+          "#if !HAVE_FUNC && !USE_SCALAR && __SSE2__\n"
+          "#define HAVE_FUNC 1\n"
+          "#include <xmmintrin.h>\n");
+    xprintf(fp, "void ufxr_exp2_%d%s {\n", order, args);
+    xputs(fp, "    assert((n % UFXR_QUANTUM) == 0);\n");
+    for (int i = 0; i <= order; i++) {
+        xprintf(fp, "    const __m128 c%d = _mm_set1_ps(%sf);\n", i, coeffs[i]);
+    }
+    xputs(fp,
+          "    for (int i = 0; i < n; i += 4) {\n"
+          "        __m128 x = _mm_load_ps(xs + i);\n"
+          "        __m128i ival = _mm_cvtps_epi32(x);\n"
+          "        __m128 frac = "
+          "_mm_sub_ps(x, _mm_cvtepi32_ps(ival));\n");
+    xprintf(fp, "        __m128 y = c%d;\n", order);
+    for (int i = order - 1; i >= 0; i--) {
+        xprintf(fp, "        y = _mm_add_ps(_mm_mul_ps(y, frac), c%d);\n", i);
+    }
+    xputs(
+        fp,
+        "        __m128 exp2ival = _mm_castsi128_ps(_mm_add_epi32(\n"
+        "            _mm_slli_epi32(ival, 23), _mm_set1_epi32(0x3f800000)));\n"
+        "        _mm_store_ps(outs + i, _mm_mul_ps(y, exp2ival));\n"
+        "    }\n"
+        "}\n"
+        "#endif\n");
+
+    xputs(fp,
+          "\n"
+          "// Scalar version.\n"
+          "#if !HAVE_FUNC\n"
+          "#include <math.h>\n");
+    xprintf(fp, "void ufxr_exp2_%d%s {\n", order, args);
+    xputs(fp, "    assert((n % UFXR_QUANTUM) == 0);\n");
     for (int i = 0; i <= order; i++) {
         xprintf(fp, "    const float c%d = %sf;\n", i, coeffs[i]);
     }
-    xputs(fp, "    for (int i = 0; i < n; i++) {\n");
-    xputs(fp, "        float x = xs[i];\n");
-    xputs(fp, "        float ival = rintf(x);\n");
-    xputs(fp, "        float frac = x - ival;\n");
+    xputs(fp,
+          "    for (int i = 0; i < n; i++) {\n"
+          "        float x = xs[i];\n"
+          "        float ival = rintf(x);\n"
+          "        float frac = x - ival;\n");
     xprintf(fp, "        float y = c%d;\n", order);
     for (int i = order - 1; i >= 0; i--) {
         xprintf(fp, "        y = y * frac + c%d;\n", i);
     }
-    xputs(fp, "        outs[i] = scalbnf(y, (int)ival);\n");
-    xputs(fp, "    }\n");
-    xputs(fp, "}\n");
+    xputs(fp,
+          "        outs[i] = scalbnf(y, (int)ival);\n"
+          "    }\n"
+          "}\n"
+          "#endif\n");
 
     int r = fclose(fp);
     if (r != 0) {

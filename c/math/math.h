@@ -1,6 +1,10 @@
 // c/math/math.h - Math functions.
 #pragma once
 
+// All inputs to these functions must have a size which is a multiple of
+// UFXR_QUANTUM.
+#define UFXR_QUANTUM 4
+
 // Compute out = 2^x. Array size must be multiple of 16.
 void ufxr_exp2_2(int n, float *restrict outs, const float *restrict xs);
 void ufxr_exp2_3(int n, float *restrict outs, const float *restrict xs);

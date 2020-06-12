@@ -40,6 +40,10 @@ int main(int argc, char **argv) {
     if ((size_t)size > (size_t)-1 / sizeof(float)) {
         die(0, "size too large");
     }
+    if ((size % UFXR_QUANTUM) != 0) {
+        dief(0, "array size, %d, is not a multiple of array quantum, %d", size,
+             UFXR_QUANTUM);
+    }
 
     float *input = xmalloc(size * sizeof(float));
     float *output = xmalloc(size * sizeof(float));
@@ -49,6 +53,7 @@ int main(int argc, char **argv) {
 
     bool success = true;
     for (size_t i = 0; i < ARRAY_SIZE(kFuncs); i++) {
+        printf("\n===== Order %d =====\n", kFuncs[i].order);
         func f = kFuncs[i].func;
         f(size, output, input);
         float worst_error = 0.0f;
@@ -84,6 +89,7 @@ int main(int argc, char **argv) {
                 1e9 * (t1.tv_sec - t0.tv_sec) + (t1.tv_nsec - t0.tv_nsec);
             printf("Time per sample: %.1f ns\n",
                    dt / (double)(itercount * size));
+            fflush(stdout);
         }
     }
 
