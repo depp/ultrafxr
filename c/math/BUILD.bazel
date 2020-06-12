@@ -51,6 +51,7 @@ cc_test(
     deps = [
         ":math",
         "//c/util",
+        "//c/util:defs",
         "//c/util:flag",
     ],
 )

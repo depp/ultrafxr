@@ -87,5 +87,3 @@ void split_csv(struct strings *restrict fields, char *row);
 // C comment with notice that a file is automatically generated. Ends with line
 // break.
 extern const char kNotice[];
-
-#define ARRAY_SIZE(a) (sizeof(a) / sizeof(*(a)))

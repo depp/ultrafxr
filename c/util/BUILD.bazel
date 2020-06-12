@@ -2,6 +2,15 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 load("//c:copts.bzl", "COPTS")
 
 cc_library(
+    name = "defs",
+    hdrs = [
+        "defs.h",
+    ],
+    copts = COPTS,
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
     name = "util",
     srcs = [
         "die.c",

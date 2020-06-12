@@ -1,4 +1,5 @@
 #include "c/math/math.h"
+#include "c/util/defs.h"
 #include "c/util/flag.h"
 #include "c/util/util.h"
 
