@@ -1,0 +1,33 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("//c:copts.bzl", "COPTS")
+
+cc_library(
+    name = "util",
+    srcs = [
+        "die.c",
+        "quote.c",
+        "stdio.c",
+        "stdlib.c",
+        "util.c",
+    ],
+    hdrs = [
+        "util.h",
+    ],
+    copts = COPTS,
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "flag",
+    srcs = [
+        "flag.c",
+    ],
+    hdrs = [
+        "flag.h",
+    ],
+    copts = COPTS,
+    visibility = ["//visibility:public"],
+    deps = [
+        "util",
+    ],
+)

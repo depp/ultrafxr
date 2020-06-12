@@ -1,0 +1,56 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+load("//c:copts.bzl", "COPTS")
+
+cc_library(
+    name = "math",
+    srcs = [
+        ":exp2",
+    ],
+    hdrs = [
+        "math.h",
+    ],
+    copts = COPTS,
+)
+
+cc_binary(
+    name = "exp2_gen",
+    srcs = [
+        "exp2_gen.c",
+    ],
+    copts = COPTS,
+    deps = [
+        "//c/util",
+    ],
+)
+
+genrule(
+    name = "exp2",
+    srcs = [
+        "//math/coeffs:exp2.csv",
+    ],
+    outs = [
+        "exp2_2.c",
+        "exp2_3.c",
+        "exp2_4.c",
+        "exp2_5.c",
+        "exp2_6.c",
+    ],
+    cmd = ("./$(location :exp2_gen) 6" +
+           " $(location //math/coeffs:exp2.csv)" +
+           " $(RULEDIR)"),
+    tools = [":exp2_gen"],
+)
+
+cc_test(
+    name = "exp2_test",
+    size = "small",
+    srcs = [
+        "exp2_test.c",
+    ],
+    copts = COPTS,
+    deps = [
+        ":math",
+        "//c/util",
+        "//c/util:flag",
+    ],
+)
