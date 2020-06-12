@@ -8,6 +8,9 @@
     "editor.detectIndentation": false,
     "editor.rulers": [80],
     "editor.tabSize": 2,
+    "files.associations": {
+      "*.h": "c"
+    },
     "files.exclude": {
       "web/node_modules/": true
     },
