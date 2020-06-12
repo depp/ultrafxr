@@ -61,3 +61,9 @@ UltraFXR is based on tools that were originally written for JS13K. A lot of the 
 - Create Audio Units or VSTs from programs.
 
 - More sophisticated in-browser editor features.
+
+## Building
+
+For development, it is recommended to use `-Werror` for C code. This can be configured with a `.bazelrc.user` file:
+
+    build --copt -Werror
