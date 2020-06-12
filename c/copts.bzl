@@ -10,4 +10,7 @@ COPTS = [
     "-Werror=implicit-function-declaration",
     "-Winit-self",
     "-Wstrict-prototypes",
-]
+] + select({
+    "//support:linux": ["-D_DEFAULT_SOURCE"],
+    "//conditions:default": [],
+})
