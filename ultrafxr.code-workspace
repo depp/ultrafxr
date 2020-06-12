@@ -11,6 +11,10 @@
     "files.exclude": {
       "web/node_modules/": true
     },
+    "[c]": {
+      "editor.formatOnSave": true,
+      "editor.tabSize": 4
+    },
     "[css]": {
       "editor.formatOnSave": true
     },
@@ -24,6 +28,10 @@
     },
     "[markdown]": {
       "editor.formatOnSave": true
+    },
+    "[starlark]": {
+      "editor.formatOnSave": true,
+      "editor.tabSize": 4
     }
   }
 }
