@@ -2,12 +2,12 @@ load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 load("//c:copts.bzl", "COPTS")
 
 cc_library(
-    name = "math",
+    name = "ops",
     srcs = [
         ":exp2",
     ],
     hdrs = [
-        "math.h",
+        "ops.h",
     ],
     copts = COPTS,
 )
@@ -49,7 +49,7 @@ cc_test(
     ],
     copts = COPTS,
     deps = [
-        ":math",
+        ":ops",
         "//c/util",
         "//c/util:defs",
         "//c/util:flag",

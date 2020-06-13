@@ -18,7 +18,7 @@ static void emit(int order, char **coeffs) {
 
     xputs(fp, kNotice);
     xputs(fp,
-          "#include \"c/math/math.h\"\n"
+          "#include \"c/ops/ops.h\"\n"
           "#include <assert.h>\n");
 
     xputs(fp,

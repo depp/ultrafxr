@@ -1,4 +1,4 @@
-// c/math/math.h - Math functions.
+// c/ops/ops.h - Low-level signal processing operators.
 #pragma once
 
 // All inputs to these functions must have a size which is a multiple of
