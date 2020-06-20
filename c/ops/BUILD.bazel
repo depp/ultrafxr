@@ -4,6 +4,7 @@ load("//c:copts.bzl", "COPTS")
 cc_library(
     name = "ops",
     srcs = [
+        "tri.c",
         ":exp2",
     ],
     hdrs = [

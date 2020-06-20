@@ -27,3 +27,7 @@ void ufxr_exp2_3(int n, float *restrict outs, const float *restrict xs);
 void ufxr_exp2_4(int n, float *restrict outs, const float *restrict xs);
 void ufxr_exp2_5(int n, float *restrict outs, const float *restrict xs);
 void ufxr_exp2_6(int n, float *restrict outs, const float *restrict xs);
+
+// Compute triangle waveform from phase. Period is 1. Output has same sign as
+// sin(2 pi x).
+void ufxr_tri(int n, float *restrict outs, const float *restrict xs);
