@@ -43,10 +43,10 @@ genrule(
 )
 
 cc_test(
-    name = "exp2_test",
+    name = "op_test",
     size = "small",
     srcs = [
-        "exp2_test.c",
+        "op_test.c",
     ],
     copts = COPTS,
     deps = [

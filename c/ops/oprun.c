@@ -44,14 +44,6 @@ static const struct func_info *find_func(const char *name) {
     die_usagef("unknown function %s", quote_str(name));
 }
 
-static void linspace(int n, float *restrict xs, float x0, float x1) {
-    float a = 1.0f / (float)(n - 1);
-    for (int i = 0; i < n; i++) {
-        float t = a * (float)i;
-        xs[i] = (1.0f - t) * x0 + t * x1;
-    }
-}
-
 static const char *const kBenchmarkOptions =
     "  -size <size>   Size of input array\n"
     "  -iter <count>  Number of function iterations per run\n"

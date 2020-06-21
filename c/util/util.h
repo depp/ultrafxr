@@ -90,6 +90,9 @@ void split_lines(struct strings *restrict lines, struct data *restrict data);
 // input. Always returns at least one field.
 void split_csv(struct strings *restrict fields, char *row);
 
+// Fill a buffer with values going from x0 to x1, inclusive, linearly.
+void linspace(int n, float *restrict xs, float x0, float x1);
+
 // C comment with notice that a file is automatically generated. Ends with line
 // break.
 extern const char kNotice[];
