@@ -26,7 +26,8 @@ static void emit(int order, char **coeffs) {
     xputs(fp,
           "\n"
           "// Scalar version.\n"
-          "#if !HAVE_FUNC\n");
+          "#if !HAVE_FUNC\n"
+          "#include <math.h>\n");
     xprintf(fp, "void ufxr_sin1_%d%s {\n", order, args);
     xputs(fp, "    assert((n % UFXR_QUANTUM) == 0);\n");
     for (int i = 0; i < order - 1; i++) {
@@ -36,7 +37,7 @@ static void emit(int order, char **coeffs) {
     xputs(fp,
           "    for (int i = 0; i < n; i++) {\n"
           "        float x = xs[i];\n"
-          "        x -= (float)(int)x;\n"
+          "        x -= rintf(x);\n"
           "        float t1 = 0.5f - x;\n"
           "        float t2 = -0.5f - x;\n"
           "        if (t1 < x)\n"

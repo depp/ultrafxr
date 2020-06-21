@@ -82,10 +82,10 @@ static const struct func_info kFuncs[] = {
     F(exp2_5, exp2_err, 5.7220e-4),
     F(exp2_6, exp2_err, 2.8610e-4),
     F(sin1_2, sin1_err, 2.6904e-2),
-    F(sin1_3, sin1_err, 2.0164e-1),
-    F(sin1_4, sin1_err, 1.8604e-2),
-    F(sin1_5, sin1_err, 9.6933e-4),
-    F(sin1_6, sin1_err, 2.9936e-5),
+    F(sin1_3, sin1_err, 8.8087e-3),
+    F(sin1_4, sin1_err, 9.7104e-4),
+    F(sin1_5, sin1_err, 1.0779e-4),
+    F(sin1_6, sin1_err, 1.1975e-5),
     F(tri, tri_err, 1.0e-6),
 };
 // clang-format on
