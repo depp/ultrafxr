@@ -23,6 +23,10 @@ struct func_info {
     func func;
 };
 
+static void ufxr_memcpy(int n, float *restrict outs, const float *restrict xs) {
+    memcpy(outs, xs, n * sizeof(float));
+}
+
 #define F(f) \
     { #f, ufxr_##f }
 // clang-format off
@@ -38,6 +42,7 @@ static const struct func_info kFuncs[] = {
     F(sin1_5),
     F(sin1_6),
     F(tri),
+    F(memcpy),
 };
 // clang-format on
 #undef F
