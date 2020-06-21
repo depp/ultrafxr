@@ -66,11 +66,11 @@ static double benchmark(int size, int iter, func f, const float *xs,
                         float *ys) {
     f(size, ys, xs); // Warm cache.
     struct timespec t0, t1;
-    clock_gettime(CLOCK_MONOTONIC, &t0);
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t0);
     for (int i = 0; i < iter; i++) {
         f(size, ys, xs);
     }
-    clock_gettime(CLOCK_MONOTONIC, &t1);
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t1);
     return 1e9 * (t1.tv_sec - t0.tv_sec) + (t1.tv_nsec - t0.tv_nsec);
 }
 
