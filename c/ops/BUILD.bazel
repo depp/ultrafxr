@@ -34,6 +34,7 @@ cc_binary(
     copts = COPTS,
     deps = [
         "//c/util",
+        "//c/util:defs",
     ],
 )
 
@@ -58,7 +59,7 @@ genrule(
 genrule(
     name = "sin1_srcs",
     srcs = [
-        "//math/coeffs:sin4.csv",
+        "//math/coeffs:sin1_l1.csv",
     ],
     outs = [
         "sin1_3.c",
@@ -66,8 +67,8 @@ genrule(
         "sin1_5.c",
         "sin1_6.c",
     ],
-    cmd = ("./$(location :sin1_gen) 6" +
-           " $(location //math/coeffs:sin4.csv)" +
+    cmd = ("./$(location :sin1_gen) full 6" +
+           " $(location //math/coeffs:sin1_l1.csv)" +
            " $(RULEDIR)"),
     tools = [":sin1_gen"],
 )

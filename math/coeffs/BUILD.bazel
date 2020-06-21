@@ -1,4 +1,5 @@
 exports_files([
     "exp2.csv",
-    "sin4.csv",
+    "sin1_smooth.csv",
+    "sin1_l1.csv",
 ])

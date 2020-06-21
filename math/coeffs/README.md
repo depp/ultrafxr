@@ -24,8 +24,10 @@ Coefficients can be generated with the Python program `calc.py`. This will creat
 
 We create a polynomial approximation to `2^x`, for x in the range -0.5..+0.5 using the Remez exchange algorithm, adjusted to minimize relative error.
 
-### sin4
+### sin1
 
-We create an odd polynomial approximation to `sin(pi/2 x)`, for x in the range -1..+1 by setting `f(0)=0`, `f(1)=1`, and requiring odd derivatives to be zero at `x=1`.
+Polynomial approximations to `sin(2 pi x)` for x in the range 0..0.25, or -0.25..0.25, depending on the version.
 
-The function is called “sin4” because it has a period of 4.
+- sin1_smooth: Smooth approximation over -0.25..0.25. Higher orders have higher-order continuous derivatives. The function is odd, and only odd polynomial coefficients are included.
+
+- sin1_l1: Fix f(0) = 0 and minimize L1 error on 0..0.25 with Remez exchange algorithm.

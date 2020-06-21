@@ -1,38 +1,79 @@
-// sin4_gen.c - Generate sin4 functions.
+// sin1_gen.c - Generate sin1 functions.
+#include "c/util/defs.h"
 #include "c/util/util.h"
 
 #include <errno.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
-static void emit(int order, char **coeffs) {
-    char fname[30];
-    xsprintf(fname, sizeof(fname), "sin1_%d.c", order);
-    FILE *fp = fopen(fname, "wb");
-    if (fp == NULL) {
-        goto error;
+enum {
+    kAlgoFull,
+    kAlgoOdd,
+};
+
+static const char kAlgoNames[][8] = {
+    [kAlgoFull] = "full",
+    [kAlgoOdd] = "odd",
+};
+
+static int find_algorithm(const char *name) {
+    if (*name != '\0') {
+        for (size_t i = 0; i < ARRAY_SIZE(kAlgoNames); i++) {
+            if (strcmp(kAlgoNames[i], name) == 0) {
+                return i;
+            }
+        }
     }
+    die_usagef("unknown algorithm: %s", quote_str(name));
+}
 
-    // Note that coeffs are scaled for period = 4.
+static const char *const kArgs =
+    "(int n, float *restrict outs, const float *restrict xs)";
 
-    const char *args =
-        "(int n, float *restrict outs, const float *restrict xs)";
-
-    xputs(fp, kNotice);
-    xputs(fp,
-          "#include \"c/ops/ops.h\"\n"
-          "#include <assert.h>\n");
-
+static void emit_full(FILE *fp, int order, char **coeffs) {
     xputs(fp,
           "\n"
           "// Scalar version.\n"
           "#if !HAVE_FUNC\n"
           "#include <math.h>\n");
-    xprintf(fp, "void ufxr_sin1_%d%s {\n", order, args);
+    xprintf(fp, "void ufxr_sin1_%d%s {\n", order, kArgs);
+    xputs(fp, "    assert((n % UFXR_QUANTUM) == 0);\n");
+    for (int i = 0; i < order; i++) {
+        xprintf(fp, "    const float c%d = %sf;\n", i, coeffs[i]);
+    }
+    xputs(fp,
+          "    for (int i = 0; i < n; i++) {\n"
+          "        float x = xs[i];\n"
+          "        x -= rintf(x);\n"
+          "        float t1 = 0.5f - x;\n"
+          "        float t2 = -0.5f - x;\n"
+          "        if (t1 < x)\n"
+          "            x = t1;\n"
+          "        if (t2 > x)\n"
+          "            x = t2;\n"
+          "        float ax = fabsf(x);\n");
+    xprintf(fp, "        float y = c%d;\n", order - 1);
+    for (int i = order - 2; i >= 0; i--) {
+        xprintf(fp, "        y = y * ax + c%d;\n", i);
+    }
+    xputs(fp,
+          "        outs[i] = x * y;\n"
+          "    }\n"
+          "}\n"
+          "#endif\n");
+}
+
+static void emit_odd(FILE *fp, int order, char **coeffs) {
+    xputs(fp,
+          "\n"
+          "// Scalar version.\n"
+          "#if !HAVE_FUNC\n"
+          "#include <math.h>\n");
+    xprintf(fp, "void ufxr_sin1_%d%s {\n", order, kArgs);
     xputs(fp, "    assert((n % UFXR_QUANTUM) == 0);\n");
     for (int i = 0; i < order - 1; i++) {
-        xprintf(fp, "    const float c%d = %d.0f * %sf;\n", i, 1 << (2 + 4 * i),
-                coeffs[i]);
+        xprintf(fp, "    const float c%d = %sf;\n", i, coeffs[i]);
     }
     xputs(fp,
           "    for (int i = 0; i < n; i++) {\n"
@@ -54,6 +95,31 @@ static void emit(int order, char **coeffs) {
           "    }\n"
           "}\n"
           "#endif\n");
+}
+
+static void emit(int algorithm, int order, char **coeffs) {
+    char fname[30];
+    xsprintf(fname, sizeof(fname), "sin1_%d.c", order);
+    FILE *fp = fopen(fname, "wb");
+    if (fp == NULL) {
+        goto error;
+    }
+
+    xputs(fp, kNotice);
+    xputs(fp,
+          "#include \"c/ops/ops.h\"\n"
+          "#include <assert.h>\n");
+
+    switch (algorithm) {
+    case kAlgoFull:
+        emit_full(fp, order, coeffs);
+        break;
+    case kAlgoOdd:
+        emit_odd(fp, order, coeffs);
+        break;
+    default:
+        die(0, "invalid algorithm");
+    }
 
     int r = fclose(fp);
     if (r != 0) {
@@ -66,13 +132,16 @@ error:;
 }
 
 int main(int argc, char **argv) {
-    if (argc != 4) {
-        fputs("Usage: sin1_gen <max-order> <sin4.csv> <out-dir>\n", stderr);
+    if (argc != 5) {
+        fputs(
+            "Usage: sin1_gen <algorithm> <max-order> <coeffs.csv> <out-dir>\n",
+            stderr);
         exit(64);
     }
-    int max_order = xatoi(argv[1]);
-    const char *inpath = argv[2];
-    const char *outdir = argv[3];
+    int algorithm = find_algorithm(argv[1]);
+    int max_order = xatoi(argv[2]);
+    const char *inpath = argv[3];
+    const char *outdir = argv[4];
 
     struct data data = {0};
     read_file(&data, inpath);
@@ -95,16 +164,27 @@ int main(int argc, char **argv) {
         if (*ostr == '\0' || *end != '\0' || order < 0) {
             dief(0, "line %d: invalid order: %s", lineno, quote_str(ostr));
         }
-        // CSV file uses different idea of what "order" means.
-        order++;
+        size_t nfields;
+        switch (algorithm) {
+        case kAlgoFull:
+            nfields = order + 1;
+            break;
+        case kAlgoOdd:
+            // CSV file uses different idea of what "order" means.
+            order++;
+            nfields = order;
+            break;
+        default:
+            die(0, "unknown algorithm");
+        }
         if (order < 3 || order > max_order) {
             continue;
         }
-        if (fields.count != (size_t)order) {
+        if (fields.count != nfields) {
             dief(0, "line %d: found %zu fields, expected %zu", lineno,
-                 fields.count, (size_t)order);
+                 fields.count, nfields);
         }
-        emit(order, fields.strings + 1);
+        emit(algorithm, order, fields.strings + 1);
     }
 
     return 0;
