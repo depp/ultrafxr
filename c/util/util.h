@@ -22,6 +22,13 @@ noreturn void die_nomem(void);
 // output.
 noreturn void die_output(void);
 
+// Print an error message for incorrect usage and exit the program.
+noreturn void die_usage(const char *msg);
+
+// Print an error message for incorrect usage and exit the program.
+noreturn void die_usagef(const char *fmt, ...)
+    __attribute__((format(printf, 1, 2)));
+
 // Convert string to integer or abort.
 int xatoi(const char *s);
 
