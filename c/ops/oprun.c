@@ -143,6 +143,13 @@ static int exec_benchmark(int argc, char **argv) {
     }
 
     // Execute
+    int func_count = 0;
+    for (size_t func = 0; func < ARRAY_SIZE(kFuncs); func++) {
+        if (funcs[func]) {
+            func_count++;
+        }
+    }
+    int cur_bench = 0, bench_count = runs * func_count;
     float *xs = xmalloc(sizeof(float) * size);
     float *ys = xmalloc(sizeof(float) * size);
     double samples = (double)iter * (double)size;
@@ -161,12 +168,20 @@ static int exec_benchmark(int argc, char **argv) {
     for (int run = 0; run < runs; run++) {
         for (size_t func = 0; func < ARRAY_SIZE(kFuncs); func++) {
             if (funcs[func]) {
+                cur_bench++;
+                if (outfile != NULL) {
+                    fprintf(stderr, "\r\x1b[KBenchmark %3d/%3d %s", cur_bench,
+                            bench_count, kFuncs[func].name);
+                    fflush(stderr);
+                }
                 double t = benchmark(size, iter, kFuncs[func].func, xs, ys);
                 xprintf(fp, "%s,%.3f\n", kFuncs[func].name, t / samples);
             }
         }
     }
     if (outfile != NULL) {
+        fputs("\r\x1b[K", stderr);
+        fflush(stderr);
         if (fclose(fp) != 0) {
             int ecode = errno;
             dief(ecode, "error writing to %s", quote_str(outfile));
