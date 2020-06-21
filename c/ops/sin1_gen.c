@@ -45,13 +45,10 @@ static void emit_full(FILE *fp, int order, char **coeffs) {
     xputs(fp,
           "    for (int i = 0; i < n; i++) {\n"
           "        float x = xs[i];\n"
-          "        x -= rintf(x);\n"
+          "        x -= rintf(x - 0.25f);\n"
           "        float t1 = 0.5f - x;\n"
-          "        float t2 = -0.5f - x;\n"
           "        if (t1 < x)\n"
           "            x = t1;\n"
-          "        if (t2 > x)\n"
-          "            x = t2;\n"
           "        float ax = fabsf(x);\n");
     xprintf(fp, "        float y = c%d;\n", order - 1);
     for (int i = order - 2; i >= 0; i--) {
@@ -107,7 +104,7 @@ static void emit(int algorithm, int order, char **coeffs) {
 
     xputs(fp, kNotice);
     xputs(fp,
-          "#include \"c/ops/ops.h\"\n"
+          "#include \"c/ops/impl.h\"\n"
           "#include <assert.h>\n");
 
     switch (algorithm) {
