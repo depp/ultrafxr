@@ -11,8 +11,8 @@
 #define EXE_NAME "oprun"
 
 enum {
-    kBenchmarkSize = 1 << 20,
-    kBenchmarkIter = 1000,
+    kBenchmarkSize = 1 << 15,
+    kBenchmarkIter = 1 << 15,
     kBenchmarkRuns = 1,
 };
 
