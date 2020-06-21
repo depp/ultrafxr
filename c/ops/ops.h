@@ -32,6 +32,15 @@ void ufxr_exp2_6(int n, float *restrict outs, const float *restrict xs);
 void ufxr_tri(int n, float *restrict outs, const float *restrict xs);
 
 // Compute out = sin(2 pi x). Available with complexity 2 to 6.
+//
+// The 2nd order version is two parabolas, one for the positive and one for the
+// negative half of the wave. This is extremely fast and pure enough to use as
+// a sine tone or for phase modulation synthesis.
+//
+// The higher-order versions are chosen to fix f(0) = 0 and minimize the maximum
+// error. For calculating filter coefficients, the 4th order version should be
+// accurate enough to use for filters tuned to specific notes, but its exact
+// accuracy for this purpose has not yet been measured.
 void ufxr_sin1_2(int n, float *restrict outs, const float *restrict xs);
 void ufxr_sin1_3(int n, float *restrict outs, const float *restrict xs);
 void ufxr_sin1_4(int n, float *restrict outs, const float *restrict xs);
