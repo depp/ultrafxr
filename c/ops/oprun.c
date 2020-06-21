@@ -36,6 +36,7 @@ static const struct func_info kFuncs[] = {
     F(exp2_4),
     F(exp2_5),
     F(exp2_6),
+    F(osc),
     F(sin1_2),
     F(sin1_3),
     F(sin1_4),
