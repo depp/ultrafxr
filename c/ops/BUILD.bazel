@@ -1,9 +1,20 @@
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 load("//c:copts.bzl", "COPTS")
 
+config_setting(
+    name = "ops_scalar",
+    define_values = {"ops": "scalar"},
+)
+
+ops_copts = COPTS + select({
+    ":ops_scalar": ["-DUSE_SCALAR"],
+    "//conditions:default": [],
+})
+
 cc_library(
     name = "ops",
     srcs = [
+        "impl.h",
         "sin1_2.c",
         "tri.c",
         ":exp2_srcs",
@@ -12,7 +23,7 @@ cc_library(
     hdrs = [
         "ops.h",
     ],
-    copts = COPTS,
+    copts = ops_copts,
 )
 
 cc_binary(

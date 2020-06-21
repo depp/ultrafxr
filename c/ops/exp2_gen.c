@@ -18,13 +18,13 @@ static void emit(int order, char **coeffs) {
 
     xputs(fp, kNotice);
     xputs(fp,
-          "#include \"c/ops/ops.h\"\n"
+          "#include \"c/ops/impl.h\"\n"
           "#include <assert.h>\n");
 
     xputs(fp,
           "\n"
           "// SSE2 version.\n"
-          "#if !HAVE_FUNC && !USE_SCALAR && __SSE2__\n"
+          "#if !HAVE_FUNC && USE_SSE2\n"
           "#define HAVE_FUNC 1\n"
           "#include <xmmintrin.h>\n");
     xprintf(fp, "void ufxr_exp2_%d%s {\n", order, args);

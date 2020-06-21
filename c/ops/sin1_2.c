@@ -1,9 +1,9 @@
 // sin1_2.c - Quadratic sin approximation.
-#include "c/ops/ops.h"
+#include "c/ops/impl.h"
 
 #include <assert.h>
 
-#if !HAVE_FUNC && __SSE2__
+#if !HAVE_FUNC && USE_SSE2
 #define HAVE_FUNC 1
 #include <xmmintrin.h>
 void ufxr_sin1_2(int n, float *restrict outs, const float *restrict xs) {

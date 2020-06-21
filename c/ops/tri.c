@@ -1,9 +1,9 @@
 // tri.c - Triangle waveform.
-#include "c/ops/ops.h"
+#include "c/ops/impl.h"
 
 #include <assert.h>
 
-#if !HAVE_FUNC && __SSE2__
+#if !HAVE_FUNC && USE_SSE2
 #define HAVE_FUNC 1
 #include <xmmintrin.h>
 void ufxr_tri(int n, float *restrict outs, const float *restrict xs) {
@@ -19,6 +19,7 @@ void ufxr_tri(int n, float *restrict outs, const float *restrict xs) {
     }
 }
 #endif
+
 // Scalar version.
 #if !HAVE_FUNC
 #include <math.h>
