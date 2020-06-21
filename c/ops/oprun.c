@@ -25,14 +25,21 @@ struct func_info {
 
 #define F(f) \
     { #f, ufxr_##f }
+// clang-format off
 static const struct func_info kFuncs[] = {
-    F(exp2_2), //
-    F(exp2_3), //
-    F(exp2_4), //
-    F(exp2_5), //
-    F(exp2_6), //
-    F(tri),    //
+    F(exp2_2),
+    F(exp2_3),
+    F(exp2_4),
+    F(exp2_5),
+    F(exp2_6),
+    F(sin1_2),
+    F(sin1_3),
+    F(sin1_4),
+    F(sin1_5),
+    F(sin1_6),
+    F(tri),
 };
+// clang-format on
 #undef F
 
 static const struct func_info *find_func(const char *name) {

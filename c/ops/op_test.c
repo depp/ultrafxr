@@ -45,6 +45,23 @@ static float tri_err(int n, const float *restrict ys,
     return max_error;
 }
 
+// Calculate sine function error as the ratio of harmonics to fundamental.
+static float sin1_err(int n, const float *restrict ys,
+                      const float *restrict xs) {
+    double tau = 8.0 * atan(1.0);
+    double sum1 = 0.0, sum2 = 0.0, sum3 = 0.0;
+    for (int i = 0; i < n; i++) {
+        double x = (double)xs[i], y = (double)ys[i];
+        double s = sin(tau * x);
+        sum1 += s * s;
+        sum2 += y * s;
+        sum3 += y * y;
+    }
+    // Cosine of angle between sin function and test function.
+    double c = sum2 / sqrt(sum1 * sum3);
+    return sqrt(1.0 - c) / c;
+}
+
 struct func_info {
     char name[8];
     // Evaluate function
@@ -57,14 +74,21 @@ struct func_info {
 
 #define F(f, g, e) \
     { #f, ufxr_##f, g, e }
+// clang-format off
 static const struct func_info kFuncs[] = {
-    F(exp2_2, exp2_err, 2.9888e0),  //
-    F(exp2_3, exp2_err, 1.2960e-1), //
-    F(exp2_4, exp2_err, 4.7207e-3), //
-    F(exp2_5, exp2_err, 5.7220e-4), //
-    F(exp2_6, exp2_err, 2.8610e-4), //
-    F(tri, tri_err, 1.0e-6),        //
+    F(exp2_2, exp2_err, 2.9888e0),
+    F(exp2_3, exp2_err, 1.2960e-1),
+    F(exp2_4, exp2_err, 4.7207e-3),
+    F(exp2_5, exp2_err, 5.7220e-4),
+    F(exp2_6, exp2_err, 2.8610e-4),
+    F(sin1_2, sin1_err, 2.6904e-2),
+    F(sin1_3, sin1_err, 2.0164e-1),
+    F(sin1_4, sin1_err, 1.8604e-2),
+    F(sin1_5, sin1_err, 9.6933e-4),
+    F(sin1_6, sin1_err, 2.9936e-5),
+    F(tri, tri_err, 1.0e-6),
 };
+// clang-format on
 #undef F
 
 // Extra margin for error, a ratio.

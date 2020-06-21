@@ -4,8 +4,10 @@ load("//c:copts.bzl", "COPTS")
 cc_library(
     name = "ops",
     srcs = [
+        "sin1_2.c",
         "tri.c",
-        ":exp2",
+        ":exp2_srcs",
+        ":sin1_srcs",
     ],
     hdrs = [
         "ops.h",
@@ -24,8 +26,19 @@ cc_binary(
     ],
 )
 
+cc_binary(
+    name = "sin1_gen",
+    srcs = [
+        "sin1_gen.c",
+    ],
+    copts = COPTS,
+    deps = [
+        "//c/util",
+    ],
+)
+
 genrule(
-    name = "exp2",
+    name = "exp2_srcs",
     srcs = [
         "//math/coeffs:exp2.csv",
     ],
@@ -40,6 +53,23 @@ genrule(
            " $(location //math/coeffs:exp2.csv)" +
            " $(RULEDIR)"),
     tools = [":exp2_gen"],
+)
+
+genrule(
+    name = "sin1_srcs",
+    srcs = [
+        "//math/coeffs:sin4.csv",
+    ],
+    outs = [
+        "sin1_3.c",
+        "sin1_4.c",
+        "sin1_5.c",
+        "sin1_6.c",
+    ],
+    cmd = ("./$(location :sin1_gen) 6" +
+           " $(location //math/coeffs:sin4.csv)" +
+           " $(RULEDIR)"),
+    tools = [":sin1_gen"],
 )
 
 cc_test(
