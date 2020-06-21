@@ -63,7 +63,7 @@ static const struct func_info kFuncs[] = {
     F(exp2_4, exp2_err, 4.7207e-3), //
     F(exp2_5, exp2_err, 5.7220e-4), //
     F(exp2_6, exp2_err, 2.8610e-4), //
-    F(tri, tri_err, 2.0f),          //
+    F(tri, tri_err, 1.0e-6),        //
 };
 #undef F
 
