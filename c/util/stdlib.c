@@ -19,6 +19,34 @@ int xatoi(const char *s) {
     return x;
 }
 
+float xatof(const char *s) {
+    errno = 0;
+    char *end;
+    float x = strtof(s, &end);
+    if (*s == '\0' || *end != '\0') {
+        dief(0, "invalid numebr: %s", quote_str(s));
+    }
+    int ecode = errno;
+    if (ecode == ERANGE) {
+        dief(0, "number out of range: %s", quote_str(s));
+    }
+    return x;
+}
+
+double xatod(const char *s) {
+    errno = 0;
+    char *end;
+    double x = strtod(s, &end);
+    if (*s == '\0' || *end != '\0') {
+        dief(0, "invalid numebr: %s", quote_str(s));
+    }
+    int ecode = errno;
+    if (ecode == ERANGE) {
+        dief(0, "number out of range: %s", quote_str(s));
+    }
+    return x;
+}
+
 void *xmalloc(size_t size) {
     if (size == 0) {
         return NULL;

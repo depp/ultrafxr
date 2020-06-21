@@ -56,3 +56,17 @@ cc_test(
         "//c/util:flag",
     ],
 )
+
+cc_binary(
+    name = "oprun",
+    srcs = [
+        "oprun.c",
+    ],
+    copts = COPTS,
+    deps = [
+        ":ops",
+        "//c/util",
+        "//c/util:defs",
+        "//c/util:flag",
+    ],
+)

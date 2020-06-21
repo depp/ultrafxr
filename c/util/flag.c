@@ -5,6 +5,7 @@
 
 #include <errno.h>
 #include <limits.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -185,4 +186,25 @@ int flag_parse(int argc, char **argv) {
     }
     *outp = NULL;
     return outp - argv;
+}
+
+enum {
+    kStatusUsage = 64,
+};
+
+noreturn void die_usage(const char *msg) {
+    fputs("Error: ", stderr);
+    fputs(msg, stderr);
+    fputc('\n', stderr);
+    exit(kStatusUsage);
+}
+
+noreturn void die_usagef(const char *fmt, ...) {
+    fputs("Error: ", stderr);
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+    va_end(ap);
+    fputc('\n', stderr);
+    exit(kStatusUsage);
 }

@@ -25,6 +25,12 @@ noreturn void die_output(void);
 // Convert string to integer or abort.
 int xatoi(const char *s);
 
+// Convert string to float or abort.
+float xatof(const char *s);
+
+// Convert string to double or abort.
+double xatod(const char *s);
+
 // Allocate memory. Aborts on failure. Returns NULL if size is zero.
 void *xmalloc(size_t size) __attribute__((malloc, alloc_size(1)));
 
