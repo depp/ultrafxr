@@ -82,7 +82,6 @@ cc_test(
     deps = [
         ":ops",
         "//c/util",
-        "//c/util:defs",
         "//c/util:flag",
     ],
 )
@@ -96,7 +95,6 @@ cc_binary(
     deps = [
         ":ops",
         "//c/util",
-        "//c/util:defs",
         "//c/util:flag",
     ],
 )

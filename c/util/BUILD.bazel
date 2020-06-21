@@ -1,6 +1,7 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("//c:copts.bzl", "COPTS")
 
+# This is the header-only subset of :util.
 cc_library(
     name = "defs",
     hdrs = [
@@ -20,6 +21,7 @@ cc_library(
         "util.c",
     ],
     hdrs = [
+        "defs.h",
         "util.h",
     ],
     copts = COPTS,
