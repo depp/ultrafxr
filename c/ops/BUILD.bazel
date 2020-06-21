@@ -17,6 +17,7 @@ cc_library(
         "check.c",
         "impl.h",
         "osc.c",
+        "quantize.c",
         "sin1_2.c",
         "tri.c",
         ":exp2_srcs",

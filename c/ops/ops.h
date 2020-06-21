@@ -52,3 +52,6 @@ void ufxr_sin1_3(int n, float *restrict outs, const float *restrict xs);
 void ufxr_sin1_4(int n, float *restrict outs, const float *restrict xs);
 void ufxr_sin1_5(int n, float *restrict outs, const float *restrict xs);
 void ufxr_sin1_6(int n, float *restrict outs, const float *restrict xs);
+
+// Quantize to 16-bit integer without dithering.
+void ufxr_quantize_i16(int n, short *restrict outs, const float *restrict xs);
