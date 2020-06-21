@@ -51,19 +51,20 @@ static const struct func_info *find_func(const char *name) {
     die_usagef("unknown function %s", quote_str(name));
 }
 
-static const char *const kBenchmarkOptions =
-    "  -size <size>   Size of input array\n"
-    "  -iter <count>  Number of function iterations per run\n"
-    "  -runs <count>  Number of benchmark runs\n";
-
 static void help_benchmark(const char *name) {
-    xprintf(stdout, "\nUsage: %s <function> [<option>...]\n", name);
-    xputs(stdout, "\nOptions:\n");
-    xputs(stdout, kBenchmarkOptions);
+    xprintf(stdout, "\nUsage: %s [<pattern>] [<option>...]\n", name);
+    xputs(stdout,
+          "\n"
+          "Options:\n"
+          "  -size <size>   Size of input array\n"
+          "  -iter <count>  Number of function iterations per run\n"
+          "  -runs <count>  Number of benchmark runs\n"
+          "  -out <file>    Write results as CSV to <file>\n");
 }
 
 static double benchmark(int size, int iter, func f, const float *xs,
                         float *ys) {
+    f(size, ys, xs); // Warm cache.
     struct timespec t0, t1;
     clock_gettime(CLOCK_MONOTONIC, &t0);
     for (int i = 0; i < iter; i++) {
@@ -73,7 +74,7 @@ static double benchmark(int size, int iter, func f, const float *xs,
     return 1e9 * (t1.tv_sec - t0.tv_sec) + (t1.tv_nsec - t0.tv_nsec);
 }
 
-static int exec_benchmark_base(bool all, int argc, char **argv) {
+static int exec_benchmark(int argc, char **argv) {
     // Parse flags
     int size = kBenchmarkSize;
     int iter = kBenchmarkIter;
@@ -82,22 +83,50 @@ static int exec_benchmark_base(bool all, int argc, char **argv) {
     flag_int(&size, "size", "array size");
     flag_int(&iter, "iter", "iteration count");
     flag_int(&runs, "runs", "number of runs");
-    const struct func_info *finfo;
-    if (all) {
-        flag_string(&outfile, "out", "output file");
-        argc = flag_parse(argc, argv);
-        finfo = NULL;
-        if (argc > 0) {
-            die_usagef("unexpected argument %s", quote_str(argv[0]));
+    flag_string(&outfile, "out", "output file");
+    argc = flag_parse(argc, argv);
+    bool funcs[ARRAY_SIZE(kFuncs)]; // Which functions to benchmark.
+    if (argc == 0) {
+        for (size_t func = 0; func < ARRAY_SIZE(kFuncs); func++) {
+            funcs[func] = true;
         }
     } else {
-        argc = flag_parse(argc, argv);
-        if (argc < 1) {
-            die_usage("missing argument <function>");
-        } else if (argc > 1) {
-            die_usagef("unexpected argument %s", quote_str(argv[0]));
+        for (size_t func = 0; func < ARRAY_SIZE(kFuncs); func++) {
+            funcs[func] = false;
         }
-        finfo = find_func(argv[0]);
+        for (int i = 0; i < argc; i++) {
+            char *pat = argv[i];
+            char *star = strchr(pat, '*');
+            if (star == NULL) {
+                bool found = false;
+                for (size_t func = 0; func < ARRAY_SIZE(kFuncs); func++) {
+                    if (strcmp(kFuncs[func].name, pat) == 0) {
+                        found = true;
+                        funcs[func] = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    die_usagef("unknown function %s", quote_str(pat));
+                }
+            } else {
+                if (*(star + 1) != '\0') {
+                    die_usagef("invalid pattern %s, '*' must be at end",
+                               quote_str(pat));
+                }
+                bool found = false;
+                for (size_t func = 0; func < ARRAY_SIZE(kFuncs); func++) {
+                    if (strncmp(kFuncs[func].name, pat, star - pat) == 0) {
+                        found = true;
+                        funcs[func] = true;
+                    }
+                }
+                if (!found) {
+                    die_usagef("no function matches pattern %s",
+                               quote_str(pat));
+                }
+            }
+        }
     }
     if (size < 1) {
         die_usage("size must be positive");
@@ -116,60 +145,34 @@ static int exec_benchmark_base(bool all, int argc, char **argv) {
     // Execute
     float *xs = xmalloc(sizeof(float) * size);
     float *ys = xmalloc(sizeof(float) * size);
-    double *times = xmalloc(sizeof(double) * runs);
     double samples = (double)iter * (double)size;
     linspace(size, xs, -5.0f, 5.0f);
-    if (all) {
-        FILE *fp;
-        if (outfile == NULL) {
-            fp = stdout;
-        } else {
-            fp = fopen(outfile, "w");
-            if (fp == NULL) {
-                int ecode = errno;
-                dief(ecode, "could not open %s", quote_str(outfile));
-            }
-        }
-        xputs(fp, "Operator,TimeNS\n");
-        for (size_t j = 0; j < ARRAY_SIZE(kFuncs); j++) {
-            func f = kFuncs[j].func;
-            for (int i = 0; i < runs; i++) {
-                double t = benchmark(size, iter, f, xs, ys);
-                xprintf(fp, "%s,%.2f\n", kFuncs[j].name, t / samples);
-            }
-        }
-        if (outfile != NULL) {
-            if (fclose(fp) != 0) {
-                int ecode = errno;
-                dief(ecode, "error writing to %s", quote_str(outfile));
-            }
-        }
+    FILE *fp;
+    if (outfile == NULL) {
+        fp = stdout;
     } else {
-        func f = finfo->func;
-        f(size, ys, xs);
-        for (int i = 0; i < runs; i++) {
-            double t = benchmark(size, iter, f, xs, ys);
-            xprintf(stdout, "Time %d: %.2fns/sample (%.0fns)\n", i, t / samples,
-                    t);
-            times[i] = t;
+        fp = fopen(outfile, "w");
+        if (fp == NULL) {
+            int ecode = errno;
+            dief(ecode, "could not open %s", quote_str(outfile));
+        }
+    }
+    xputs(fp, "Operator,TimeNS\n");
+    for (int run = 0; run < runs; run++) {
+        for (size_t func = 0; func < ARRAY_SIZE(kFuncs); func++) {
+            if (funcs[func]) {
+                double t = benchmark(size, iter, kFuncs[func].func, xs, ys);
+                xprintf(fp, "%s,%.3f\n", kFuncs[func].name, t / samples);
+            }
+        }
+    }
+    if (outfile != NULL) {
+        if (fclose(fp) != 0) {
+            int ecode = errno;
+            dief(ecode, "error writing to %s", quote_str(outfile));
         }
     }
     return 0;
-}
-
-static int exec_benchmark(int argc, char **argv) {
-    return exec_benchmark_base(false, argc, argv);
-}
-
-static void help_benchmark_all(const char *name) {
-    xprintf(stdout, "\nUsage: %s [<option>...]\n", name);
-    xputs(stdout, "\nOptions:\n");
-    xputs(stdout, kBenchmarkOptions);
-    xputs(stdout, "  -out <file>    Write results as CSV to <file>\n");
-}
-
-static int exec_benchmark_all(int argc, char **argv) {
-    return exec_benchmark_base(true, argc, argv);
 }
 
 static void help_dump(const char *name) {
@@ -256,9 +259,7 @@ struct cmd_info {
 };
 
 static const struct cmd_info kCmds[] = {
-    {"benchmark", "Benchmark a function", help_benchmark, exec_benchmark},
-    {"benchmark-all", "Benchmark all functions", help_benchmark_all,
-     exec_benchmark_all},
+    {"benchmark", "Benchmark functions", help_benchmark, exec_benchmark},
     {"dump", "Dump function output to CSV", help_dump, exec_dump},
     {"help", "Show help", help_help, exec_help},
 };
