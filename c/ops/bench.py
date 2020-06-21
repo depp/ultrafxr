@@ -103,6 +103,7 @@ def main(argv):
     p.add_argument('--iter', type=int, help='Number of iterations per run')
     p.add_argument('--impl', choices={'vector', 'scalar'},
                    default='vector', help='Operator implementation')
+    p.add_argument('--copt', action='append', help='C compiler flags')
     args = p.parse_args(argv)
 
     bench_args = []
@@ -120,6 +121,9 @@ def main(argv):
     bazel_args = []
     if args.impl != 'vector':
         bazel_args.append('--define=ops=' + args.impl)
+    if args.copt is not None:
+        for copt in args.copt:
+            bazel_args.append('--copt=' + copt)
 
     proc = subprocess.run(
         ['bazel', 'build', '-c', 'opt', ':oprun', *bazel_args],
