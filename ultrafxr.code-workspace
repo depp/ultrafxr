@@ -32,6 +32,9 @@
     "[markdown]": {
       "editor.formatOnSave": true
     },
+    "[python]": {
+      "editor.tabSize": 4
+    },
     "[starlark]": {
       "editor.formatOnSave": true,
       "editor.tabSize": 4
