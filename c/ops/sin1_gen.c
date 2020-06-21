@@ -32,39 +32,63 @@ static const char *const kArgs =
     "(int n, float *restrict outs, const float *restrict xs)";
 
 static void emit_full(FILE *fp, int order, char **coeffs) {
-    xputs(fp,
-          "\n"
-          "// SSE2 version.\n"
-          "// Disabled because it is slower.\n"
-          "#if !HAVE_FUNC && USE_SSE2\n"
-          "#define HAVE_FUNC 1\n"
-          "#include <xmmintrin.h>\n");
-    xprintf(fp, "void ufxr_sin1_%d%s {\n", order, kArgs);
-    xputs(fp,
-          "    assert((n % UFXR_QUANTUM) == 0);\n"
-          "    const __m128 d0 = _mm_set1_ps(0.25f);\n"
-          "    const __m128 d1 = _mm_set1_ps(0.5f);\n");
-    for (int i = 0; i < order; i++) {
-        xprintf(fp, "    const __m128 c%d = _mm_set1_ps(%sf);\n", i, coeffs[i]);
+    enum {
+        kSSE4_1,
+        kSSE2,
+    };
+    for (int v = 0; v < 2; v++) {
+        if (v == kSSE2) {
+            xputs(fp,
+                  "\n"
+                  "// SSE2 version.\n"
+                  "#if !HAVE_FUNC && USE_SSE2\n"
+                  "#define HAVE_FUNC 1\n"
+                  "#include <xmmintrin.h>\n");
+        } else {
+            xputs(fp,
+                  "\n"
+                  "// SSE4.1 version.\n"
+                  "#if !HAVE_FUNC && USE_SSE4_1\n"
+                  "#define HAVE_FUNC 1\n"
+                  "#include <smmintrin.h>\n");
+        }
+        xprintf(fp, "void ufxr_sin1_%d%s {\n", order, kArgs);
+        xputs(fp,
+              "    assert((n % UFXR_QUANTUM) == 0);\n"
+              "    const __m128 d0 = _mm_set1_ps(0.25f);\n"
+              "    const __m128 d1 = _mm_set1_ps(0.5f);\n");
+        for (int i = 0; i < order; i++) {
+            xprintf(fp, "    const __m128 c%d = _mm_set1_ps(%sf);\n", i,
+                    coeffs[i]);
+        }
+        xputs(fp,
+              "    const __m128 abs = "
+              "_mm_castsi128_ps(_mm_srli_epi32(_mm_set1_epi32(-1), 1));\n"
+              "    for (int i = 0; i < n; i += 4) {\n"
+              "        __m128 x = _mm_load_ps(xs + i);\n");
+        if (v == kSSE2) {
+            xputs(fp,
+                  "        x = _mm_sub_ps(x, "
+                  "_mm_cvtepi32_ps(_mm_cvtps_epi32(_mm_sub_ps(x, d0))));\n");
+        } else {
+            xputs(fp,
+                  "        x = _mm_sub_ps(x, _mm_round_ps("
+                  "_mm_sub_ps(x, d0), "
+                  "_MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));\n");
+        }
+        xputs(fp,
+              "        x = _mm_min_ps(x, _mm_sub_ps(d1, x));\n"
+              "        __m128 ax = _mm_and_ps(x, abs);\n");
+        xprintf(fp, "        __m128 y = c%d;\n", order - 1);
+        for (int i = order - 2; i >= 0; i--) {
+            xprintf(fp, "        y = _mm_add_ps(_mm_mul_ps(y, ax), c%d);\n", i);
+        }
+        xputs(fp,
+              "        _mm_store_ps(outs + i, _mm_mul_ps(y, x));\n"
+              "    }\n"
+              "}\n"
+              "#endif\n");
     }
-    xputs(fp,
-          "    const __m128 abs = "
-          "_mm_castsi128_ps(_mm_srli_epi32(_mm_set1_epi32(-1), 1));\n"
-          "    for (int i = 0; i < n; i += 4) {\n"
-          "        __m128 x = _mm_load_ps(xs + i);\n"
-          "        x = _mm_sub_ps(x, "
-          "_mm_cvtepi32_ps(_mm_cvtps_epi32(_mm_sub_ps(x, d0))));\n"
-          "        x = _mm_min_ps(x, _mm_sub_ps(d1, x));\n"
-          "        __m128 ax = _mm_and_ps(x, abs);\n");
-    xprintf(fp, "        __m128 y = c%d;\n", order - 1);
-    for (int i = order - 2; i >= 0; i--) {
-        xprintf(fp, "        y = _mm_add_ps(_mm_mul_ps(y, ax), c%d);\n", i);
-    }
-    xputs(fp,
-          "        _mm_store_ps(outs + i, _mm_mul_ps(y, x));\n"
-          "    }\n"
-          "}\n"
-          "#endif\n");
 
     xputs(fp,
           "\n"
