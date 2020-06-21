@@ -14,6 +14,7 @@ ops_copts = COPTS + select({
 cc_library(
     name = "ops",
     srcs = [
+        "check.c",
         "impl.h",
         "sin1_2.c",
         "tri.c",

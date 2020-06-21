@@ -54,7 +54,7 @@ static void emit_full(FILE *fp, int order, char **coeffs) {
         }
         xprintf(fp, "void ufxr_sin1_%d%s {\n", order, kArgs);
         xputs(fp,
-              "    assert((n % UFXR_QUANTUM) == 0);\n"
+              "    CHECK2(n, outs, xs);\n"
               "    const __m128 d0 = _mm_set1_ps(0.25f);\n"
               "    const __m128 d1 = _mm_set1_ps(0.5f);\n");
         for (int i = 0; i < order; i++) {
@@ -96,7 +96,7 @@ static void emit_full(FILE *fp, int order, char **coeffs) {
           "#if !HAVE_FUNC\n"
           "#include <math.h>\n");
     xprintf(fp, "void ufxr_sin1_%d%s {\n", order, kArgs);
-    xputs(fp, "    assert((n % UFXR_QUANTUM) == 0);\n");
+    xputs(fp, "    CHECK2(n, outs, xs);\n");
     for (int i = 0; i < order; i++) {
         xprintf(fp, "    const float c%d = %sf;\n", i, coeffs[i]);
     }
@@ -126,7 +126,7 @@ static void emit_odd(FILE *fp, int order, char **coeffs) {
           "#if !HAVE_FUNC\n"
           "#include <math.h>\n");
     xprintf(fp, "void ufxr_sin1_%d%s {\n", order, kArgs);
-    xputs(fp, "    assert((n % UFXR_QUANTUM) == 0);\n");
+    xputs(fp, "    CHECK2(n, outs, xs);\n");
     for (int i = 0; i < order - 1; i++) {
         xprintf(fp, "    const float c%d = %sf;\n", i, coeffs[i]);
     }
@@ -161,9 +161,7 @@ static void emit(int algorithm, int order, char **coeffs) {
     }
 
     xputs(fp, kNotice);
-    xputs(fp,
-          "#include \"c/ops/impl.h\"\n"
-          "#include <assert.h>\n");
+    xputs(fp, "#include \"c/ops/impl.h\"\n");
 
     switch (algorithm) {
     case kAlgoFull:

@@ -17,10 +17,7 @@ static void emit(int order, char **coeffs) {
         "(int n, float *restrict outs, const float *restrict xs)";
 
     xputs(fp, kNotice);
-    xputs(fp,
-          "#include \"c/ops/impl.h\"\n"
-          "#include <assert.h>\n");
-
+    xputs(fp, "#include \"c/ops/impl.h\"\n");
     xputs(fp,
           "\n"
           "// SSE2 version.\n"
@@ -28,7 +25,7 @@ static void emit(int order, char **coeffs) {
           "#define HAVE_FUNC 1\n"
           "#include <xmmintrin.h>\n");
     xprintf(fp, "void ufxr_exp2_%d%s {\n", order, args);
-    xputs(fp, "    assert((n % UFXR_QUANTUM) == 0);\n");
+    xputs(fp, "    CHECK2(n, outs, xs);\n");
     for (int i = 0; i <= order; i++) {
         xprintf(fp, "    const __m128 c%d = _mm_set1_ps(%sf);\n", i, coeffs[i]);
     }
@@ -57,7 +54,7 @@ static void emit(int order, char **coeffs) {
           "#if !HAVE_FUNC\n"
           "#include <math.h>\n");
     xprintf(fp, "void ufxr_exp2_%d%s {\n", order, args);
-    xputs(fp, "    assert((n % UFXR_QUANTUM) == 0);\n");
+    xputs(fp, "    CHECK2(n, outs, xs);\n");
     for (int i = 0; i <= order; i++) {
         xprintf(fp, "    const float c%d = %sf;\n", i, coeffs[i]);
     }

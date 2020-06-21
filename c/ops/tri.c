@@ -1,13 +1,11 @@
 // tri.c - Triangle waveform.
 #include "c/ops/impl.h"
 
-#include <assert.h>
-
 #if !HAVE_FUNC && USE_SSE2
 #define HAVE_FUNC 1
 #include <xmmintrin.h>
 void ufxr_tri(int n, float *restrict outs, const float *restrict xs) {
-    assert((n % UFXR_QUANTUM) == 0);
+    CHECK2(n, outs, xs);
     const __m128 c0 = _mm_set1_ps(2.0f);
     const __m128 c1 = _mm_sub_ps(_mm_set1_ps(0.0f), c0);
     const __m128 c2 = _mm_set1_ps(4.0f);
@@ -24,7 +22,7 @@ void ufxr_tri(int n, float *restrict outs, const float *restrict xs) {
 #if !HAVE_FUNC
 #include <math.h>
 void ufxr_tri(int n, float *restrict outs, const float *restrict xs) {
-    assert((n % UFXR_QUANTUM) == 0);
+    CHECK2(n, outs, xs);
     for (int i = 0; i < n; i++) {
         float x = xs[i];
         x -= rintf(x);

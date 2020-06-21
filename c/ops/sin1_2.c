@@ -1,13 +1,11 @@
 // sin1_2.c - Quadratic sin approximation.
 #include "c/ops/impl.h"
 
-#include <assert.h>
-
 #if !HAVE_FUNC && USE_SSE4_1
 #define HAVE_FUNC 1
 #include <smmintrin.h>
 void ufxr_sin1_2(int n, float *restrict outs, const float *restrict xs) {
-    assert((n % UFXR_QUANTUM) == 0);
+    CHECK2(n, outs, xs);
     const __m128 abs = _mm_castsi128_ps(_mm_srli_epi32(_mm_set1_epi32(-1), 1));
     const __m128 c2 = _mm_set1_ps(8.0f);
     const __m128 c3 = _mm_set1_ps(16.0f);
@@ -25,7 +23,7 @@ void ufxr_sin1_2(int n, float *restrict outs, const float *restrict xs) {
 #define HAVE_FUNC 1
 #include <xmmintrin.h>
 void ufxr_sin1_2(int n, float *restrict outs, const float *restrict xs) {
-    assert((n % UFXR_QUANTUM) == 0);
+    CHECK2(n, outs, xs);
     const __m128 abs = _mm_castsi128_ps(_mm_srli_epi32(_mm_set1_epi32(-1), 1));
     const __m128 c2 = _mm_set1_ps(8.0f);
     const __m128 c3 = _mm_set1_ps(16.0f);
@@ -42,7 +40,7 @@ void ufxr_sin1_2(int n, float *restrict outs, const float *restrict xs) {
 #if !HAVE_FUNC
 #include <math.h>
 void ufxr_sin1_2(int n, float *restrict outs, const float *restrict xs) {
-    assert((n % UFXR_QUANTUM) == 0);
+    CHECK2(n, outs, xs);
     for (int i = 0; i < n; i++) {
         float x = xs[i];
         x -= rintf(x);

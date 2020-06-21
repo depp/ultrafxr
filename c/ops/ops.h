@@ -5,6 +5,9 @@
 // UFXR_QUANTUM.
 #define UFXR_QUANTUM 4
 
+// Minimum alignment for buffers.
+#define UFXR_ALIGN 16
+
 // Compute out = 2^x. Available in 2nd order to 6th order.
 //
 // Since this function is used for converting note values to frequencies, error
