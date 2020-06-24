@@ -19,11 +19,13 @@ int main(int argc, char **argv) {
     int samplerate = 48000;
     float length = 1.0f;
     const char *outpath = NULL;
+    int bits = 16;
     flag_float(&f0, "f0", "starting frequency, Hz");
     flag_float(&f1, "f1", "ending frequency, Hz");
     flag_int(&samplerate, "rate", "sample rate, Hz");
     flag_float(&length, "length", "audio length in seconds");
     flag_string(&outpath, "out", "output wav file");
+    flag_int(&bits, "bits", "bits per sample");
     argc = flag_parse(argc, argv);
     if (argc != 0) {
         die_usagef("unexpected argument %s", quote_str(argv[0]));
@@ -46,6 +48,24 @@ int main(int argc, char **argv) {
     if (outpath == NULL) {
         die_usage("missing required option -out");
     }
+    ufxr_format format;
+    switch (bits) {
+    case 8:
+        format = kUFXRFormatU8;
+        break;
+    case 16:
+        format = kUFXRFormatS16;
+        break;
+    case 24:
+        format = kUFXRFormatS24;
+        break;
+    case 32:
+        format = kUFXRFormatF32;
+        break;
+    default:
+        die_usagef("unsupported bits per sample %d (must be 8, 16, 24, or 32)",
+                   bits);
+    }
 
     // Generate samples.
     float *x1 = xmalloc(sizeof(float) * n);
@@ -63,7 +83,7 @@ int main(int argc, char **argv) {
     struct ufxr_waveinfo info = {
         .samplerate = samplerate,
         .channels = 1,
-        .format = kUFXRFormatS16,
+        .format = format,
         .length = n,
     };
     if (!ufxr_wavewriter_create(&w, outpath, &info, &err)) {

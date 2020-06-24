@@ -4,7 +4,10 @@ load("//c/config:copts.bzl", "CORE_COPTS")
 cc_library(
     name = "convert",
     srcs = [
+        "to_lef32.c",
         "to_les16.c",
+        "to_les24.c",
+        "to_u8.c",
     ],
     hdrs = [
         "convert.h",

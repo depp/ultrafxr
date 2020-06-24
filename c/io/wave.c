@@ -4,6 +4,7 @@
 #include "c/io/error.h"
 #include "c/util/defs.h"
 
+#include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdlib.h>
@@ -19,7 +20,7 @@
 // WAVE_FORMAT_IEEE_FLOAT = 0x0003
 
 enum {
-    kUFXRWaveBufferSize = 1 * 1024,
+    kUFXRWaveBufferSize = 16 * 1024,
 };
 
 static inline unsigned short le16(unsigned short x);
@@ -258,6 +259,39 @@ bool ufxr_wavewriter_finish(struct ufxr_wavewriter *restrict w,
     return true;
 }
 
+static bool ufxr_wavewriter_writeu8(struct ufxr_wavewriter *restrict w,
+                                    const float *restrict data, size_t count,
+                                    struct ufxr_error *err) {
+    unsigned riff_data_written;
+    if (__builtin_add_overflow(w->riff_data_written, count,
+                               &riff_data_written)) {
+        ufxr_error_setcode(err, kUFXRErrorTooLong);
+        return false;
+    }
+    w->riff_data_written = riff_data_written;
+    w->samples_written += count;
+    const float *dpos = data, *dend = dpos + count;
+    char *start = w->buffer, *pos = start + w->buffer_pos,
+         *end = start + w->buffer_size;
+    while (dpos < dend) {
+        if (pos == end) {
+            w->buffer_pos = end - start;
+            if (!ufxr_wavewriter_flush(w, err)) {
+                return false;
+            }
+            pos = start;
+        }
+        size_t bufrem = end - pos;
+        size_t datarem = dend - dpos;
+        size_t n = bufrem < datarem ? bufrem : datarem;
+        ufxr_to_u8(n, pos, dpos);
+        pos += n;
+        dpos += n;
+    }
+    w->buffer_pos = pos - start;
+    return true;
+}
+
 static bool ufxr_wavewriter_writes16(struct ufxr_wavewriter *restrict w,
                                      const float *restrict data, size_t count,
                                      struct ufxr_error *err) {
@@ -283,16 +317,55 @@ static bool ufxr_wavewriter_writes16(struct ufxr_wavewriter *restrict w,
         size_t bufrem = end - pos;
         size_t datarem = dend - dpos;
         size_t n = bufrem / 2;
+        // This should always be true, because we will always be at an even
+        // position in the buffer.
+        assert(n > 0);
         if (n > datarem) {
             n = datarem;
         }
         ufxr_to_les16(n, pos, dpos);
         pos += n * 2;
         dpos += n;
+    }
+    w->buffer_pos = pos - start;
+    return true;
+}
+
+static bool ufxr_wavewriter_writes24(struct ufxr_wavewriter *restrict w,
+                                     const float *restrict data, size_t count,
+                                     struct ufxr_error *err) {
+    unsigned riff_data_written;
+    if (__builtin_add_overflow(w->riff_data_written, count * 3,
+                               &riff_data_written)) {
+        ufxr_error_setcode(err, kUFXRErrorTooLong);
+        return false;
+    }
+    w->riff_data_written = riff_data_written;
+    w->samples_written += count;
+    const float *dpos = data, *dend = dpos + count;
+    char *start = w->buffer, *pos = start + w->buffer_pos,
+         *end = start + w->buffer_size;
+    while (dpos < dend) {
+        if (pos == end) {
+            w->buffer_pos = end - start;
+            if (!ufxr_wavewriter_flush(w, err)) {
+                return false;
+            }
+            pos = start;
+        }
+        size_t bufrem = end - pos;
+        size_t datarem = dend - dpos;
+        size_t n = bufrem / 3;
+        if (n > datarem) {
+            n = datarem;
+        }
+        ufxr_to_les24(n, pos, dpos);
+        pos += n * 3;
+        dpos += n;
         if (dpos < dend && pos < end) {
-            bufrem = dend - dpos;
-            char sdata[2];
-            ufxr_to_les16(1, sdata, dpos);
+            bufrem = end - pos;
+            char sdata[3];
+            ufxr_to_les24(1, sdata, dpos);
             dpos += 1;
             memcpy(pos, sdata, bufrem);
             w->buffer_pos = end - start;
@@ -300,7 +373,57 @@ static bool ufxr_wavewriter_writes16(struct ufxr_wavewriter *restrict w,
                 return false;
             }
             pos = start;
-            memcpy(pos + n, data + n, sizeof(sdata) - bufrem);
+            memcpy(pos, sdata + bufrem, sizeof(sdata) - bufrem);
+            pos += sizeof(sdata) - bufrem;
+        }
+    }
+    w->buffer_pos = pos - start;
+    return true;
+}
+
+static bool ufxr_wavewriter_writef32(struct ufxr_wavewriter *restrict w,
+                                     const float *restrict data, size_t count,
+                                     struct ufxr_error *err) {
+    unsigned riff_data_written;
+    if (__builtin_add_overflow(w->riff_data_written, count * 4,
+                               &riff_data_written)) {
+        ufxr_error_setcode(err, kUFXRErrorTooLong);
+        return false;
+    }
+    w->riff_data_written = riff_data_written;
+    w->samples_written += count;
+    const float *dpos = data, *dend = dpos + count;
+    char *start = w->buffer, *pos = start + w->buffer_pos,
+         *end = start + w->buffer_size;
+    while (dpos < dend) {
+        if (pos == end) {
+            w->buffer_pos = end - start;
+            if (!ufxr_wavewriter_flush(w, err)) {
+                return false;
+            }
+            pos = start;
+        }
+        size_t bufrem = end - pos;
+        size_t datarem = dend - dpos;
+        size_t n = bufrem / 4;
+        if (n > datarem) {
+            n = datarem;
+        }
+        ufxr_to_lef32(n, pos, dpos);
+        pos += n * 4;
+        dpos += n;
+        if (dpos < dend && pos < end) {
+            bufrem = end - pos;
+            char sdata[4];
+            ufxr_to_lef32(1, sdata, dpos);
+            dpos += 1;
+            memcpy(pos, sdata, bufrem);
+            w->buffer_pos = end - start;
+            if (!ufxr_wavewriter_flush(w, err)) {
+                return false;
+            }
+            pos = start;
+            memcpy(pos, sdata + bufrem, sizeof(sdata) - bufrem);
             pos += sizeof(sdata) - bufrem;
         }
     }
@@ -316,8 +439,14 @@ bool ufxr_wavewriter_write(struct ufxr_wavewriter *restrict w,
         return false;
     }
     switch (w->info.format) {
+    case kUFXRFormatU8:
+        return ufxr_wavewriter_writeu8(w, data, count, err);
     case kUFXRFormatS16:
         return ufxr_wavewriter_writes16(w, data, count, err);
+    case kUFXRFormatS24:
+        return ufxr_wavewriter_writes24(w, data, count, err);
+    case kUFXRFormatF32:
+        return ufxr_wavewriter_writef32(w, data, count, err);
     default:
         ufxr_error_setcode(err, kUFXRErrorInvalidArgument);
         return false;
