@@ -13,9 +13,10 @@ typedef enum {
     kFlagString,
     kFlagInteger,
     kFlagBoolean,
+    kFlagFloat,
 } flag_type;
 
-#define FLAG_TYPE_COUNT ((int)kFlagBoolean + 1)
+#define FLAG_TYPE_COUNT ((int)kFlagFloat + 1)
 
 struct flag {
     flag_type type;
@@ -80,6 +81,16 @@ void flag_bool(bool *value, const char *name, const char *doc) {
     };
 }
 
+void flag_float(float *value, const char *name, const char *doc) {
+    check_name(name);
+    *flag_new() = (struct flag){
+        .type = kFlagFloat,
+        .value = value,
+        .name = name,
+        .doc = doc,
+    };
+}
+
 static void parse_string(struct flag *fp, char *arg) {
     char **value = fp->value;
     *value = arg;
@@ -106,9 +117,26 @@ static void parse_boolean(struct flag *fp) {
     *value = true;
 }
 
+static void parse_float(struct flag *fp, char *arg) {
+    float *value = fp->value;
+    char *end;
+    errno = 0;
+    float x = strtof(arg, &end);
+    if (*arg == '\0' || *end != '\0') {
+        dief(0, "invalid value for -%s: got %s, expected an integer", fp->name,
+             quote_str(arg));
+    }
+    int ecode = errno;
+    if (ecode == ERANGE) {
+        dief(0, "value for -%s is too large: %s", fp->name, quote_str(arg));
+    }
+    *value = x;
+}
+
 static const bool kFlagNeedsArg[FLAG_TYPE_COUNT] = {
     [kFlagString] = true,
     [kFlagInteger] = true,
+    [kFlagFloat] = true,
 };
 
 int flag_parse(int argc, char **argv) {
@@ -173,6 +201,9 @@ int flag_parse(int argc, char **argv) {
             break;
         case kFlagBoolean:
             parse_boolean(fp);
+            break;
+        case kFlagFloat:
+            parse_float(fp, value);
             break;
         }
     }

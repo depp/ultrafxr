@@ -1,0 +1,14 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+config_setting(
+    name = "scalar",
+    define_values = {"ops": "scalar"},
+)
+
+cc_library(
+    name = "config",
+    hdrs = [
+        "config.h",
+    ],
+    visibility = ["//c:__subpackages__"],
+)

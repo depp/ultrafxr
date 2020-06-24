@@ -1,0 +1,17 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("//c/config:copts.bzl", "CORE_COPTS")
+
+cc_library(
+    name = "convert",
+    srcs = [
+        "to_les16.c",
+    ],
+    hdrs = [
+        "convert.h",
+    ],
+    copts = CORE_COPTS,
+    visibility = ["//visibility:public"],
+    deps = [
+        "//c/config",
+    ],
+)

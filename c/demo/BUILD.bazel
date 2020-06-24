@@ -1,0 +1,17 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("//c:copts.bzl", "COPTS")
+
+cc_binary(
+    name = "demo",
+    srcs = [
+        "demo.c",
+    ],
+    copts = COPTS,
+    deps = [
+        "//c/convert",
+        "//c/io",
+        "//c/ops",
+        "//c/util",
+        "//c/util:flag",
+    ],
+)
