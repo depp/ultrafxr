@@ -67,3 +67,7 @@ UltraFXR is based on tools that were originally written for JS13K. A lot of the 
 For development, it is recommended to use `-Werror` for C code. This can be configured with a `.bazelrc.user` file:
 
     build --copt -Werror
+
+On macOS, you may have an easier time debugging by instructing Bazel to link without using a sandbox. This can be done in `.bazelrc.user` with the following line:
+
+    build --strategy_regexp=^Linking=local
